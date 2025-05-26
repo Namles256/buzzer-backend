@@ -5,7 +5,6 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -13,75 +12,64 @@ const io = new Server(server, {
   }
 });
 
-const players = {};
+const rooms = {};
 
 app.get("/", (req, res) => {
   res.send("✅ Buzzer-Backend läuft.");
 });
 
 io.on("connection", (socket) => {
-  console.log("🔌 Neue Verbindung:", socket.id);
-
   socket.on("join", ({ name, room, isHost }) => {
-    console.log(`✅ ${name} ist Raum '${room}' beigetreten`);
     socket.join(room);
-    players[socket.id] = { name, room, isHost, points: 0 };
-    broadcastPlayers(room);
+    socket.data = { name, room, isHost };
+    if (!rooms[room]) rooms[room] = { players: {}, host: null };
+    if (isHost) rooms[room].host = socket.id;
+    if (!isHost) {
+      if (!rooms[room].players[name]) rooms[room].players[name] = 0;
+    }
+    updatePlayers(room);
   });
 
   socket.on("buzz", ({ room, name }) => {
-    console.log(`🔔 Buzz von ${name} in Raum ${room}`);
-    for (let [id, player] of Object.entries(players)) {
-      if (player.room === room) {
-        const toSocket = io.sockets.sockets.get(id);
-        if (!toSocket) continue;
-        if (id === socket.id) continue;
-
-        if (player.isHost) {
-          toSocket.emit("buzz", { name });
-        } else {
-          toSocket.emit("buzz", {});
-        }
-      }
-    }
+    io.to(room).emit("buzz", { name });
   });
 
-  socket.on("result", ({ room, type, points = 100, minus = true }) => {
-    const buzzed = Object.entries(players).find(
-      ([, p]) => p.room === room && !p.isHost
-    );
+  socket.on("result", ({ room, type, points, minus }) => {
+    const buzzed = Object.keys(rooms[room].players)[0];
     if (buzzed) {
-      const [buzzedId, player] = buzzed;
       if (type === "correct") {
-        player.points += points;
+        rooms[room].players[buzzed] += points;
       } else if (type === "wrong" && minus) {
-        player.points -= points;
+        rooms[room].players[buzzed] -= points;
       }
     }
     io.to(room).emit("result", { type });
-    broadcastPlayers(room);
+    updatePlayers(room);
   });
 
-  socket.on("reset", (room) => {
-    io.to(room).emit("reset");
+  socket.on("resetPoints", (room) => {
+    Object.keys(rooms[room].players).forEach(p => rooms[room].players[p] = 0);
+    updatePlayers(room);
   });
 
-  socket.on("disconnect", () => {
-    const player = players[socket.id];
-    if (player) {
-      const room = player.room;
-      delete players[socket.id];
-      broadcastPlayers(room);
+  socket.on("setPoints", ({ room, playerName, points }) => {
+    if (rooms[room].players[playerName] !== undefined) {
+      rooms[room].players[playerName] = points;
+      updatePlayers(room);
     }
   });
 
-  function broadcastPlayers(room) {
-    const roomPlayers = Object.fromEntries(
-      Object.entries(players)
-        .filter(([_, p]) => p.room === room && !p.isHost)
-        .map(([_, p]) => [p.name, p.points])
-    );
-    io.to(room).emit("players", roomPlayers);
+  socket.on("resetRoom", (room) => {
+    rooms[room].players = {};
+    updatePlayers(room);
+  });
+
+  socket.on("disconnect", () => {
+    // keine Löschung für Rejoin-Logik
+  });
+
+  function updatePlayers(room) {
+    io.to(rooms[room].host).emit("players", rooms[room].players);
   }
 });
 
