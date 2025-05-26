@@ -47,6 +47,11 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("result", ({ room, type }) => {
+    console.log(`📢 Ergebnis in Raum ${room}: ${type}`);
+    io.to(room).emit("result", { type });
+  });
+
   socket.on("reset", (room) => {
     io.to(room).emit("reset");
   });
