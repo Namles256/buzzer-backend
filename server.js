@@ -20,12 +20,15 @@ app.get("/", (req, res) => {
 
 io.on("connection", (socket) => {
   socket.on("join", ({ name, room, isHost }) => {
+  updatePlayers(room);
     socket.join(room);
     socket.data = { name, room, isHost };
 
     if (!rooms[room]) {
       rooms[room] = {
         players: {},
+        buzzLocked: false,
+        onlyFirstBuzz: false,
         host: null,
         firstBuzz: null,
         allowMultiple: false,
@@ -52,6 +55,9 @@ io.on("connection", (socket) => {
   });
 
   socket.on("buzz", ({ room, name }) => {
+    if (!rooms[room]) return;
+    if (rooms[room].onlyFirstBuzz && rooms[room].buzzLocked) return;
+    rooms[room].buzzLocked = rooms[room].onlyFirstBuzz;
     if (!rooms[room]) return;
     const roomData = rooms[room];
 
@@ -106,6 +112,19 @@ io.on("connection", (socket) => {
   socket.on("resetBuzz", (room) => {
     if (rooms[room]) {
       rooms[room].firstBuzz = null;
+      io.to(room).emit("reset");
+    }
+  });
+
+  socket.on("settings", ({ room, onlyFirstBuzz }) => {
+    if (rooms[room]) {
+      rooms[room].onlyFirstBuzz = onlyFirstBuzz;
+    }
+  });
+
+  socket.on("resetBuzz", (room) => {
+    if (rooms[room]) {
+      rooms[room].buzzLocked = false;
       io.to(room).emit("reset");
     }
   });
