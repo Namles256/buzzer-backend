@@ -1,127 +1,68 @@
 
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
+let socket = io("https://buzzer-backend-a8ub.onrender.com");
+let name = "";
+let room = "";
+let isHost = false;
+let showPoints = true;
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+const root = document.getElementById("root");
+
+function renderJoinScreen() {
+  root.innerHTML = `
+    <h2>Spielshow Joinen</h2>
+    <input id="nameInput" placeholder="Dein Name"><br/><br/>
+    <input id="roomInput" placeholder="Raum-Code"><br/><br/>
+    <label><input type="checkbox" id="hostCheck"/> Ich bin Host</label><br/><br/>
+    <button id="joinBtn">Beitreten</button>
+  `;
+  document.getElementById("joinBtn").onclick = () => {
+    name = document.getElementById("nameInput").value;
+    room = document.getElementById("roomInput").value;
+    isHost = document.getElementById("hostCheck").checked;
+    socket.emit("join", { name, room, isHost });
+    renderGameScreen();
+  };
+}
+
+function renderGameScreen(players = {}) {
+  let content = `<h2>Raum: ${room}</h2>`;
+  if (isHost) {
+    content += `
+      <div id="hostPanel">
+        <label><input type="checkbox" id="showPointsToggle" ${showPoints ? "checked" : ""}/> Punkte bei Spielern anzeigen</label><br/><br/>
+        <ul>
+          ${Object.entries(players).map(([p, pts]) => `
+            <li>${p}: ${pts.toFixed(1)} Punkte</li>
+          `).join("")}
+        </ul>
+      </div>
+    `;
+  } else {
+    content += `
+      <div id="playerPanel">
+        <ul>
+          ${Object.entries(players).map(([p, pts]) => `
+            <li>${p}${showPoints ? ": " + pts.toFixed(1) + " Punkte" : ""}</li>
+          `).join("")}
+        </ul>
+      </div>
+    `;
   }
-});
+  root.innerHTML = content;
 
-const rooms = {};
-
-app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft.");
-});
-
-io.on("connection", (socket) => {
-  socket.on("join", ({ name, room, isHost }) => {
-    socket.join(room);
-    socket.data = { name, room, isHost };
-
-    if (!rooms[room]) {
-      rooms[room] = {
-        players: {},
-        host: null,
-        firstBuzz: null,
-        allowMultiple: false,
-        hideBuzz: false
-      };
-    }
-
-    if (isHost) {
-      rooms[room].host = socket.id;
-    } else {
-      if (!rooms[room].players[name]) {
-        rooms[room].players[name] = 0;
-      }
-    }
-
-    updatePlayers(room);
-  });
-
-  socket.on("settings", ({ room, allowMultipleBuzzers, hideBuzzFromPlayers }) => {
-    if (rooms[room]) {
-      if (allowMultipleBuzzers !== undefined) rooms[room].allowMultiple = allowMultipleBuzzers;
-      if (hideBuzzFromPlayers !== undefined) rooms[room].hideBuzz = hideBuzzFromPlayers;
-    }
-  });
-
-  socket.on("buzz", ({ room, name }) => {
-    if (!rooms[room]) return;
-    const roomData = rooms[room];
-
-    if (!roomData.allowMultiple && roomData.firstBuzz) return;
-
-    roomData.firstBuzz = name;
-
-    for (let [id, s] of io.of("/").sockets) {
-      if (s.data.room === room) {
-        const sendBuzz = s.data.isHost || !roomData.hideBuzz ? { name } : {};
-        io.to(id).emit("buzz", sendBuzz);
-      }
-    }
-  });
-
-  socket.on("result", ({ room, type, points = 100, minus = false }) => {
-    const roomData = rooms[room];
-    if (!roomData || !roomData.firstBuzz) return;
-    const buzzName = roomData.firstBuzz;
-    if (type === "correct") {
-      roomData.players[buzzName] += points;
-    } else if (type === "wrong" && minus) {
-      roomData.players[buzzName] -= points;
-    }
-    roomData.firstBuzz = null;
-    io.to(room).emit("result", { type });
-    updatePlayers(room);
-  });
-
-  socket.on("resetPoints", (room) => {
-    if (rooms[room]) {
-      Object.keys(rooms[room].players).forEach(p => rooms[room].players[p] = 0);
-      updatePlayers(room);
-    }
-  });
-
-  socket.on("setPoints", ({ room, playerName, points }) => {
-    if (rooms[room]?.players[playerName] !== undefined) {
-      rooms[room].players[playerName] = points;
-      updatePlayers(room);
-    }
-  });
-
-  socket.on("resetRoom", (room) => {
-    if (rooms[room]) {
-      rooms[room].players = {};
-      rooms[room].firstBuzz = null;
-      updatePlayers(room);
-    }
-  });
-
-  socket.on("resetBuzz", (room) => {
-    if (rooms[room]) {
-      rooms[room].firstBuzz = null;
-      io.to(room).emit("reset");
-    }
-  });
-
-  socket.on("disconnect", () => {
-    // keine Löschung bei Disconnect
-  });
-
-  function updatePlayers(room) {
-    const hostId = rooms[room]?.host;
-    if (hostId) {
-      io.to(hostId).emit("players", rooms[room].players);
-    }
+  if (isHost) {
+    document.getElementById("showPointsToggle").onchange = (e) => {
+      showPoints = e.target.checked;
+      socket.emit("settings", { room, showPoints });
+      renderGameScreen(players);
+    };
   }
+}
+
+socket.on("connect", () => {
+  renderJoinScreen();
 });
 
-server.listen(3001, () => {
-  console.log("🚀 Server läuft auf Port 3001");
+socket.on("players", (players) => {
+  renderGameScreen(players);
 });
