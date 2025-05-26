@@ -66,12 +66,17 @@ io.on("connection", (socket) => {
     roomData.firstBuzz = name;
 
     for (let [id, s] of io.of("/").sockets) {
-      if (s.data.room === room) {
-        const sendBuzz = s.data.isHost || !roomData.hideBuzz ? { name } : {};
-        io.to(id).emit("buzz", sendBuzz);
-      }
+  if (s.data.room === room && !s.data.isHost) {
+    if (rooms[room].showPoints) {
+      io.to(id).emit("players", rooms[room].players);
+    } else {
+      const hidden = Object.fromEntries(
+        Object.keys(rooms[room].players).map(p => [p, 0])
+      );
+      io.to(id).emit("players", hidden);
     }
-  });
+  }
+}
 
   socket.on("result", ({ room, type, points = 100, minus = false }) => {
     const roomData = rooms[room];
