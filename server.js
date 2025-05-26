@@ -1,68 +1,79 @@
 
-let socket = io("https://buzzer-backend-a8ub.onrender.com");
-let name = "";
-let room = "";
-let isHost = false;
-let showPoints = true;
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
 
-const root = document.getElementById("root");
-
-function renderJoinScreen() {
-  root.innerHTML = `
-    <h2>Spielshow Joinen</h2>
-    <input id="nameInput" placeholder="Dein Name"><br/><br/>
-    <input id="roomInput" placeholder="Raum-Code"><br/><br/>
-    <label><input type="checkbox" id="hostCheck"/> Ich bin Host</label><br/><br/>
-    <button id="joinBtn">Beitreten</button>
-  `;
-  document.getElementById("joinBtn").onclick = () => {
-    name = document.getElementById("nameInput").value;
-    room = document.getElementById("roomInput").value;
-    isHost = document.getElementById("hostCheck").checked;
-    socket.emit("join", { name, room, isHost });
-    renderGameScreen();
-  };
-}
-
-function renderGameScreen(players = {}) {
-  let content = `<h2>Raum: ${room}</h2>`;
-  if (isHost) {
-    content += `
-      <div id="hostPanel">
-        <label><input type="checkbox" id="showPointsToggle" ${showPoints ? "checked" : ""}/> Punkte bei Spielern anzeigen</label><br/><br/>
-        <ul>
-          ${Object.entries(players).map(([p, pts]) => `
-            <li>${p}: ${pts.toFixed(1)} Punkte</li>
-          `).join("")}
-        </ul>
-      </div>
-    `;
-  } else {
-    content += `
-      <div id="playerPanel">
-        <ul>
-          ${Object.entries(players).map(([p, pts]) => `
-            <li>${p}${showPoints ? ": " + pts.toFixed(1) + " Punkte" : ""}</li>
-          `).join("")}
-        </ul>
-      </div>
-    `;
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
   }
-  root.innerHTML = content;
-
-  if (isHost) {
-    document.getElementById("showPointsToggle").onchange = (e) => {
-      showPoints = e.target.checked;
-      socket.emit("settings", { room, showPoints });
-      renderGameScreen(players);
-    };
-  }
-}
-
-socket.on("connect", () => {
-  renderJoinScreen();
 });
 
-socket.on("players", (players) => {
-  renderGameScreen(players);
+const rooms = {};
+
+app.get("/", (req, res) => {
+  res.send("✅ Buzzer-Backend läuft.");
+});
+
+io.on("connection", (socket) => {
+  socket.on("join", ({ name, room, isHost }) => {
+    socket.join(room);
+    socket.data = { name, room, isHost };
+
+    if (!rooms[room]) {
+      rooms[room] = {
+        players: {},
+        host: null,
+        showPoints: true
+      };
+    }
+
+    if (isHost) {
+      rooms[room].host = socket.id;
+    } else {
+      if (!rooms[room].players[name]) {
+        rooms[room].players[name] = 0;
+      }
+    }
+
+    updatePlayers(room);
+  });
+
+  socket.on("settings", ({ room, showPoints }) => {
+    if (rooms[room] && showPoints !== undefined) {
+      rooms[room].showPoints = showPoints;
+      updatePlayers(room);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    // keine Löschung bei Disconnect
+  });
+
+  function updatePlayers(room) {
+    const hostId = rooms[room]?.host;
+    if (hostId) {
+      io.to(hostId).emit("players", rooms[room].players);
+    }
+
+    for (let [id, s] of io.of("/").sockets) {
+      if (s.data.room === room && !s.data.isHost) {
+        if (rooms[room].showPoints) {
+          io.to(id).emit("players", rooms[room].players);
+        } else {
+          const emptyPoints = Object.fromEntries(
+            Object.keys(rooms[room].players).map(p => [p, 0])
+          );
+          io.to(id).emit("players", emptyPoints);
+        }
+      }
+    }
+  }
+});
+
+server.listen(3001, () => {
+  console.log("🚀 Server läuft auf Port 3001");
 });
