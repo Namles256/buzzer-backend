@@ -20,12 +20,14 @@ app.get("/", (req, res) => {
 
 io.on("connection", (socket) => {
   socket.on("join", ({ name, room, isHost }) => {
+  updatePlayers(room);
     socket.join(room);
     socket.data = { name, room, isHost };
 
     if (!rooms[room]) {
       rooms[room] = {
         players: {},
+        showPoints: true,
         host: null,
         firstBuzz: null,
         allowMultiple: false,
@@ -110,6 +112,13 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("settings", ({ room, showPoints }) => {
+    if (rooms[room] && showPoints !== undefined) {
+      rooms[room].showPoints = showPoints;
+      updatePlayers(room);
+    }
+  });
+
   socket.on("disconnect", () => {
     // keine Löschung bei Disconnect
   });
@@ -118,6 +127,16 @@ io.on("connection", (socket) => {
     const hostId = rooms[room]?.host;
     if (hostId) {
       io.to(hostId).emit("players", rooms[room].players);
+    for (let [id, s] of io.of("/").sockets) {
+      if (s.data.room === room && !s.data.isHost) {
+        if (rooms[room].showPoints) {
+          io.to(id).emit("players", rooms[room].players);
+        } else {
+          const hidden = Object.fromEntries(Object.keys(rooms[room].players).map(p => [p, 0]));
+          io.to(id).emit("players", hidden);
+        }
+      }
+    }
     }
   }
 });
