@@ -1,41 +1,45 @@
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
-const cors = require("cors");
 
 const app = express();
-app.use(cors());
-
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+    origin: "*"
   }
 });
 
-io.on("connection", (socket) => {
-  console.log("🔌 Neue Verbindung hergestellt");
+const players = {};
 
-  socket.on("join", ({ room, name }) => {
+io.on("connection", (socket) => {
+  console.log("🔌 Neue Verbindung:", socket.id);
+
+  socket.on("join", ({ name, room }) => {
     console.log(`✅ ${name} ist Raum '${room}' beigetreten`);
     socket.join(room);
-  });
+    players[socket.id] = { name, room, points: 0 };
 
-  socket.on("buzz", ({ room, name }) => {
-    console.log(`🔔 Buzz von ${name} in Raum '${room}'`);
-    io.to(room).emit("buzz", name);
-  });
-
-  socket.on("reset", (room) => {
-    console.log(`♻️ Reset in Raum '${room}'`);
-    io.to(room).emit("reset");
+    broadcastPlayers(room);
   });
 
   socket.on("disconnect", () => {
-    console.log("❌ Verbindung getrennt");
+    const player = players[socket.id];
+    if (player) {
+      const room = player.room;
+      delete players[socket.id];
+      broadcastPlayers(room);
+    }
   });
+
+  function broadcastPlayers(room) {
+    const roomPlayers = Object.fromEntries(
+      Object.entries(players).filter(([_, p]) => p.room === room)
+    );
+    io.to(room).emit("players", roomPlayers);
+  }
 });
 
-const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => console.log(`🚀 Server läuft auf Port ${PORT}`));
+server.listen(3001, () => {
+  console.log("🚀 Server läuft auf Port 3001");
+});
