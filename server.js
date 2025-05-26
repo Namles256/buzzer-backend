@@ -5,6 +5,7 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
+
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -14,13 +15,17 @@ const io = new Server(server, {
 
 const players = {};
 
+app.get("/", (req, res) => {
+  res.send("✅ Buzzer-Backend läuft.");
+});
+
 io.on("connection", (socket) => {
   console.log("🔌 Neue Verbindung:", socket.id);
 
   socket.on("join", ({ name, room }) => {
     console.log(`✅ ${name} ist Raum '${room}' beigetreten`);
     socket.join(room);
-    players[socket.id] = { name, room, points: 0 };
+    players[socket.id] = { name, room };
 
     broadcastPlayers(room);
   });
@@ -30,14 +35,13 @@ io.on("connection", (socket) => {
     for (let [id, player] of Object.entries(players)) {
       if (player.room === room) {
         const toSocket = io.sockets.sockets.get(id);
-        if (toSocket) {
-          if (id === socket.id) continue; // Buzzer selbst – keine Antwort nötig
-          if (player.name === name) continue; // Buzzer selbst
-          if (player.isHost) {
-            toSocket.emit("buzz", { name }); // Host bekommt Name
-          } else {
-            toSocket.emit("buzz", {}); // Teilnehmer bekommen nur Signal
-          }
+        if (!toSocket) continue;
+        if (id === socket.id) continue; // nicht an sich selbst senden
+
+        if (player.isHost) {
+          toSocket.emit("buzz", { name }); // Host sieht den Namen
+        } else {
+          toSocket.emit("buzz", {}); // Teilnehmer bekommen nur Signal
         }
       }
     }
