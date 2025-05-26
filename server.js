@@ -25,7 +25,7 @@ io.on("connection", (socket) => {
   socket.on("join", ({ name, room, isHost }) => {
     console.log(`✅ ${name} ist Raum '${room}' beigetreten`);
     socket.join(room);
-    players[socket.id] = { name, room, isHost };
+    players[socket.id] = { name, room, isHost, points: 0 };
 
     broadcastPlayers(room);
   });
@@ -47,9 +47,20 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("result", ({ room, type }) => {
+  socket.on("result", ({ room, type, points = 100, minus = false }) => {
     console.log(`📢 Ergebnis in Raum ${room}: ${type}`);
+    const buzzerId = Object.entries(players).find(([_, p]) => p.room === room && !p.isHost)?.[0];
+
+    if (buzzerId && players[buzzerId]) {
+      if (type === "correct") {
+        players[buzzerId].points += points;
+      } else if (type === "wrong" && minus) {
+        players[buzzerId].points -= points;
+      }
+    }
+
     io.to(room).emit("result", { type });
+    broadcastPlayers(room);
   });
 
   socket.on("reset", (room) => {
@@ -67,7 +78,9 @@ io.on("connection", (socket) => {
 
   function broadcastPlayers(room) {
     const roomPlayers = Object.fromEntries(
-      Object.entries(players).filter(([_, p]) => p.room === room)
+      Object.entries(players)
+        .filter(([_, p]) => p.room === room)
+        .map(([id, p]) => [p.name, p.points ?? 0])
     );
     io.to(room).emit("players", roomPlayers);
   }
