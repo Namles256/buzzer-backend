@@ -22,54 +22,103 @@ io.on("connection", (socket) => {
   socket.on("join", ({ name, room, isHost }) => {
     socket.join(room);
     socket.data = { name, room, isHost };
-    if (!rooms[room]) rooms[room] = { players: {}, host: null };
-    if (isHost) rooms[room].host = socket.id;
-    if (!isHost) {
-      if (!rooms[room].players[name]) rooms[room].players[name] = 0;
+
+    if (!rooms[room]) {
+      rooms[room] = {
+        players: {},
+        host: null,
+        firstBuzz: null,
+        allowMultiple: false,
+        hideBuzz: false
+      };
     }
+
+    if (isHost) {
+      rooms[room].host = socket.id;
+    } else {
+      if (!rooms[room].players[name]) {
+        rooms[room].players[name] = 0;
+      }
+    }
+
     updatePlayers(room);
   });
 
-  socket.on("buzz", ({ room, name }) => {
-    io.to(room).emit("buzz", { name });
+  socket.on("settings", ({ room, allowMultipleBuzzers, hideBuzzFromPlayers }) => {
+    if (rooms[room]) {
+      if (allowMultipleBuzzers !== undefined) rooms[room].allowMultiple = allowMultipleBuzzers;
+      if (hideBuzzFromPlayers !== undefined) rooms[room].hideBuzz = hideBuzzFromPlayers;
+    }
   });
 
-  socket.on("result", ({ room, type, points, minus }) => {
-    const buzzed = Object.keys(rooms[room].players)[0];
-    if (buzzed) {
-      if (type === "correct") {
-        rooms[room].players[buzzed] += points;
-      } else if (type === "wrong" && minus) {
-        rooms[room].players[buzzed] -= points;
+  socket.on("buzz", ({ room, name }) => {
+    if (!rooms[room]) return;
+    const roomData = rooms[room];
+
+    if (!roomData.allowMultiple && roomData.firstBuzz) return;
+
+    roomData.firstBuzz = name;
+
+    for (let [id, s] of io.of("/").sockets) {
+      if (s.data.room === room) {
+        const sendBuzz = s.data.isHost || !roomData.hideBuzz ? { name } : {};
+        io.to(id).emit("buzz", sendBuzz);
       }
     }
+  });
+
+  socket.on("result", ({ room, type, points = 100, minus = false }) => {
+    const roomData = rooms[room];
+    if (!roomData || !roomData.firstBuzz) return;
+    const buzzName = roomData.firstBuzz;
+    if (type === "correct") {
+      roomData.players[buzzName] += points;
+    } else if (type === "wrong" && minus) {
+      roomData.players[buzzName] -= points;
+    }
+    roomData.firstBuzz = null;
     io.to(room).emit("result", { type });
     updatePlayers(room);
   });
 
   socket.on("resetPoints", (room) => {
-    Object.keys(rooms[room].players).forEach(p => rooms[room].players[p] = 0);
-    updatePlayers(room);
+    if (rooms[room]) {
+      Object.keys(rooms[room].players).forEach(p => rooms[room].players[p] = 0);
+      updatePlayers(room);
+    }
   });
 
   socket.on("setPoints", ({ room, playerName, points }) => {
-    if (rooms[room].players[playerName] !== undefined) {
+    if (rooms[room]?.players[playerName] !== undefined) {
       rooms[room].players[playerName] = points;
       updatePlayers(room);
     }
   });
 
   socket.on("resetRoom", (room) => {
-    rooms[room].players = {};
-    updatePlayers(room);
+    if (rooms[room]) {
+      rooms[room].players = {};
+      rooms[room].firstBuzz = null;
+      updatePlayers(room);
+    }
+  });
+
+  socket.on("resetBuzz", (room) => {
+    if (rooms[room]) {
+      rooms[room].firstBuzz = null;
+      io.to(room).emit("reset");
+    }
   });
 
   socket.on("disconnect", () => {
-    // keine Löschung für Rejoin-Logik
+    // keine Löschung bei Disconnect
   });
 
   function updatePlayers(room) {
-    io.to(rooms[room].host).emit("players", rooms[room].players);
+    const hostId = rooms[room]?.host;
+    if (hostId) {
+      io.to(hostId).emit("players", rooms[room].players);
+    }
   }
 });
 
