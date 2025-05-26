@@ -22,10 +22,10 @@ app.get("/", (req, res) => {
 io.on("connection", (socket) => {
   console.log("🔌 Neue Verbindung:", socket.id);
 
-  socket.on("join", ({ name, room }) => {
+  socket.on("join", ({ name, room, isHost }) => {
     console.log(`✅ ${name} ist Raum '${room}' beigetreten`);
     socket.join(room);
-    players[socket.id] = { name, room };
+    players[socket.id] = { name, room, isHost };
 
     broadcastPlayers(room);
   });
@@ -36,12 +36,12 @@ io.on("connection", (socket) => {
       if (player.room === room) {
         const toSocket = io.sockets.sockets.get(id);
         if (!toSocket) continue;
-        if (id === socket.id) continue; // nicht an sich selbst senden
+        if (id === socket.id) continue;
 
         if (player.isHost) {
-          toSocket.emit("buzz", { name }); // Host sieht den Namen
+          toSocket.emit("buzz", { name });
         } else {
-          toSocket.emit("buzz", {}); // Teilnehmer bekommen nur Signal
+          toSocket.emit("buzz", {});
         }
       }
     }
