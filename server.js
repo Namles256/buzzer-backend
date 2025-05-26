@@ -24,6 +24,28 @@ io.on("connection", (socket) => {
     broadcastPlayers(room);
   });
 
+  socket.on("buzz", ({ room, name }) => {
+    console.log(`🔔 Buzz von ${name} in Raum ${room}`);
+    for (let [id, player] of Object.entries(players)) {
+      if (player.room === room) {
+        const toSocket = io.sockets.sockets.get(id);
+        if (toSocket) {
+          if (id === socket.id) continue; // Buzzer selbst – keine Antwort nötig
+          if (player.name === name) continue; // Buzzer selbst
+          if (player.isHost) {
+            toSocket.emit("buzz", { name }); // Host bekommt Name
+          } else {
+            toSocket.emit("buzz", {}); // Teilnehmer bekommen nur Signal
+          }
+        }
+      }
+    }
+  });
+
+  socket.on("reset", (room) => {
+    io.to(room).emit("reset");
+  });
+
   socket.on("disconnect", () => {
     const player = players[socket.id];
     if (player) {
