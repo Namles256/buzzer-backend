@@ -27,9 +27,10 @@ io.on("connection", (socket) => {
       rooms[room] = {
         players: {},
         host: null,
-        firstBuzz: null,
+        buzzOrder: [],
         allowMultiple: false,
-        hideBuzz: false
+        hideBuzz: false,
+        showPoints: true
       };
     }
 
@@ -44,24 +45,31 @@ io.on("connection", (socket) => {
     updatePlayers(room);
   });
 
-  socket.on("settings", ({ room, allowMultipleBuzzers, hideBuzzFromPlayers }) => {
+  socket.on("settings", ({ room, allowMultipleBuzzers, hideBuzzFromPlayers, showPoints }) => {
     if (rooms[room]) {
       if (allowMultipleBuzzers !== undefined) rooms[room].allowMultiple = allowMultipleBuzzers;
       if (hideBuzzFromPlayers !== undefined) rooms[room].hideBuzz = hideBuzzFromPlayers;
+      if (showPoints !== undefined) rooms[room].showPoints = showPoints;
     }
+    updatePlayers(room);
   });
 
   socket.on("buzz", ({ room, name }) => {
     if (!rooms[room]) return;
     const roomData = rooms[room];
 
-    if (!roomData.allowMultiple && roomData.firstBuzz) return;
+    if (!roomData.allowMultiple && roomData.buzzOrder.length > 0) return;
 
-    roomData.firstBuzz = name;
+    if (!roomData.buzzOrder.includes(name)) {
+      roomData.buzzOrder.push(name);
+    }
 
     for (let [id, s] of io.of("/").sockets) {
       if (s.data.room === room) {
-        const sendBuzz = s.data.isHost || !roomData.hideBuzz ? { name } : {};
+        const isSelf = s.data.name === name;
+        const sendBuzz = s.data.isHost
+          ? { name, order: [...roomData.buzzOrder] }
+          : (isSelf ? { name } : (roomData.hideBuzz ? {} : { name }));
         io.to(id).emit("buzz", sendBuzz);
       }
     }
@@ -69,15 +77,16 @@ io.on("connection", (socket) => {
 
   socket.on("result", ({ room, type, points = 100, minus = false }) => {
     const roomData = rooms[room];
-    if (!roomData || !roomData.firstBuzz) return;
-    const buzzName = roomData.firstBuzz;
+    if (!roomData || roomData.buzzOrder.length === 0) return;
+    const buzzName = roomData.buzzOrder[0];
     if (type === "correct") {
       roomData.players[buzzName] += points;
     } else if (type === "wrong" && minus) {
       roomData.players[buzzName] -= points;
     }
-    roomData.firstBuzz = null;
+    roomData.buzzOrder = [];
     io.to(room).emit("result", { type });
+    io.to(room).emit("reset");
     updatePlayers(room);
   });
 
@@ -98,14 +107,14 @@ io.on("connection", (socket) => {
   socket.on("resetRoom", (room) => {
     if (rooms[room]) {
       rooms[room].players = {};
-      rooms[room].firstBuzz = null;
+      rooms[room].buzzOrder = [];
       updatePlayers(room);
     }
   });
 
   socket.on("resetBuzz", (room) => {
     if (rooms[room]) {
-      rooms[room].firstBuzz = null;
+      rooms[room].buzzOrder = [];
       io.to(room).emit("reset");
     }
   });
@@ -118,6 +127,17 @@ io.on("connection", (socket) => {
     const hostId = rooms[room]?.host;
     if (hostId) {
       io.to(hostId).emit("players", rooms[room].players);
+    }
+
+    // Punkte für Spieler synchronisieren (wenn erlaubt)
+    for (let [id, s] of io.of("/").sockets) {
+      if (s.data.room === room && !s.data.isHost) {
+        if (rooms[room].showPoints) {
+          io.to(id).emit("players", rooms[room].players);
+        } else {
+          io.to(id).emit("players", {});
+        }
+      }
     }
   }
 });
