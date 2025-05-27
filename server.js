@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.3.9.0)");
+  res.send("✅ Buzzer-Backend läuft (v0.3.9.1)");
 });
 
 io.on("connection", (socket) => {
@@ -61,6 +61,14 @@ io.on("connection", (socket) => {
     if (equalMode !== undefined) rooms[room].equalMode = equalMode;
     if (showBuzzedPlayerToAll !== undefined) rooms[room].showBuzzedPlayerToAll = showBuzzedPlayerToAll;
     updatePlayers(room);
+  });
+
+  socket.on("adjustPoints", ({ room, name, delta }) => {
+    const r = rooms[room];
+    if (!r || !r.players[name]) return;
+    r.players[name] += delta;
+    updatePlayers(room);
+    io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
   });
 
   socket.on("buzzModeChanged", ({ room, mode }) => {
