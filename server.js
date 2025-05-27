@@ -1,4 +1,4 @@
-// server.js – v0.4.0.3
+// server.js – v0.4.0.4
 const express = require("express");
 const app = express();
 const http = require("http").createServer(app);
@@ -49,7 +49,7 @@ io.on("connection", (socket) => {
 
   socket.on("buzz", ({ room, name }) => {
     if (!rooms[room]) return;
-    if (!rooms[room].players[name]) return;
+    if (!(name in rooms[room].players)) return;
     if (rooms[room].buzzMode === "first" && rooms[room].buzzOrder.length > 0) return;
 
     if (!rooms[room].buzzOrder.includes(name)) {
@@ -62,7 +62,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("result", ({ room, name, type }) => {
-    if (!rooms[room] || !rooms[room].players[name]) return;
+    if (!rooms[room] || !(name in rooms[room].players)) return;
     let delta = type === "correct" ? rooms[room].settings.pointsRight : rooms[room].settings.pointsWrong;
     rooms[room].players[name] += delta;
 
@@ -117,7 +117,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("adjustPoints", ({ room, name, delta }) => {
-    if (!rooms[room] || !rooms[room].players[name]) return;
+    if (!rooms[room] || !(name in rooms[room].players)) return;
     rooms[room].players[name] += delta;
     io.to(room).emit("playerUpdate", {
       players: rooms[room].players,
@@ -162,7 +162,7 @@ io.on("connection", (socket) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.0.3)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.0.4)");
 });
 
 http.listen(PORT, () => {
