@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.3.9.3)");
+  res.send("✅ Buzzer-Backend läuft (v0.3.9.4)");
 });
 
 io.on("connection", (socket) => {
@@ -25,6 +25,7 @@ io.on("connection", (socket) => {
     if (!rooms[room]) {
       rooms[room] = {
         players: {},
+        playerTexts: {},
         host: null,
         showPoints: true,
         pointsRight: 100,
@@ -45,6 +46,7 @@ io.on("connection", (socket) => {
     } else {
       if (!rooms[room].players[name]) {
         rooms[room].players[name] = 0;
+        rooms[room].playerTexts[name] = "";
       }
       socket.emit("buzzModeSet", rooms[room].buzzMode);
     }
@@ -65,19 +67,23 @@ io.on("connection", (socket) => {
 
   socket.on("adjustPoints", ({ room, name, delta }) => {
     const r = rooms[room];
-    if (!r || !r.players[name]) return;
+    if (!r) return;
+    if (!(name in r.players)) {
+      r.players[name] = 0;
+    }
     r.players[name] += delta;
     updatePlayers(room);
     io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
   });
 
-  socket.on("setPoints", ({ room, name, value }) => {
+  socket.on("textUpdate", ({ room, name, text }) => {
     const r = rooms[room];
-    if (!r || !r.players[name]) return;
-    const delta = value - r.players[name];
-    r.players[name] = value;
-    updatePlayers(room);
-    io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
+    if (!r || !(name in r.players)) return;
+    r.playerTexts[name] = text;
+    const hostId = r.host;
+    if (hostId) {
+      io.to(hostId).emit("textUpdate", { name, text });
+    }
   });
 
   socket.on("buzzModeChanged", ({ room, mode }) => {
@@ -95,7 +101,6 @@ io.on("connection", (socket) => {
       r.buzzBlocked = true;
       io.to(room).emit("buzzBlocked");
       io.to(r.host).emit("buzz", { name });
-      io.to(room).emit("buzzSound", { name });
       if (r.showBuzzedPlayerToAll) {
         io.to(room).emit("buzzNameVisible", name);
       }
@@ -108,8 +113,6 @@ io.on("connection", (socket) => {
       io.to(r.host).emit("buzzOrderUpdate", r.buzzOrder);
       io.to(socket.id).emit("buzzBlocked");
       io.to(r.host).emit("buzz", { name });
-      io.to(r.host).emit("buzzSound", { name });
-      io.to(socket.id).emit("buzzSound", { name });
     }
   });
 
@@ -124,7 +127,6 @@ io.on("connection", (socket) => {
         r.players[name] += r.pointsRight;
         updates.push({ name, delta: r.pointsRight });
       }
-      io.to(room).emit("resultSound", "correct");
     } else if (type === "wrong") {
       if (r.players[name] !== undefined) {
         r.players[name] += r.pointsWrong;
@@ -136,7 +138,6 @@ io.on("connection", (socket) => {
           updates.push({ name: p, delta: r.pointsOthers });
         }
       });
-      io.to(room).emit("resultSound", "wrong");
     }
 
     r.buzzBlocked = false;
@@ -164,7 +165,8 @@ function updatePlayers(room) {
   io.to(room).emit("playerUpdate", {
     players: r.players,
     showPoints: r.showPoints,
-    buzzOrder: r.buzzOrder
+    buzzOrder: r.buzzOrder,
+    texts: r.playerTexts || {}
   });
 }
 
