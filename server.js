@@ -68,7 +68,9 @@ io.on("connection", (socket) => {
   socket.on("adjustPoints", ({ room, name, delta }) => {
     const r = rooms[room];
     if (!r) return;
-    if (!(name in r.players)) r.players[name] = 0;
+    if (!(name in r.players)) {
+      r.players[name] = 0;
+    }
     r.players[name] += delta;
     updatePlayers(room);
     io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
@@ -82,10 +84,6 @@ io.on("connection", (socket) => {
     if (hostId) {
       io.to(hostId).emit("textUpdate", { name, text });
     }
-  });
-
-  socket.on("playSound", ({ room, type }) => {
-    io.to(room).emit("playSound", type);
   });
 
   socket.on("buzzModeChanged", ({ room, mode }) => {
@@ -102,6 +100,7 @@ io.on("connection", (socket) => {
     if (r.buzzMode === "first") {
       r.buzzBlocked = true;
       io.to(room).emit("buzzBlocked");
+      io.to(room).emit("buzzSound");
       io.to(r.host).emit("buzz", { name });
       if (r.showBuzzedPlayerToAll) {
         io.to(room).emit("buzzNameVisible", name);
@@ -113,8 +112,9 @@ io.on("connection", (socket) => {
       r.buzzedPlayers.add(name);
       r.buzzOrder.push(name);
       io.to(r.host).emit("buzzOrderUpdate", r.buzzOrder);
-      io.to(socket.id).emit("buzzBlocked");
+      io.to(socket.id).emit("buzzSound");
       io.to(r.host).emit("buzz", { name });
+      io.to(socket.id).emit("buzzBlocked");
     }
   });
 
@@ -129,7 +129,6 @@ io.on("connection", (socket) => {
         r.players[name] += r.pointsRight;
         updates.push({ name, delta: r.pointsRight });
       }
-      io.to(room).emit("playSound", "correct");
     } else if (type === "wrong") {
       if (r.players[name] !== undefined) {
         r.players[name] += r.pointsWrong;
@@ -141,7 +140,6 @@ io.on("connection", (socket) => {
           updates.push({ name: p, delta: r.pointsOthers });
         }
       });
-      io.to(room).emit("playSound", "wrong");
     }
 
     r.buzzBlocked = false;
