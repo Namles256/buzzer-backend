@@ -1,4 +1,4 @@
-// server.js – v0.4.0.4
+// server.js – v0.4.0.6
 const express = require("express");
 const app = express();
 const http = require("http").createServer(app);
@@ -78,6 +78,11 @@ io.on("connection", (socket) => {
     }
 
     io.to(room).emit("scoreUpdateEffects", updates);
+
+    // ⬇️ Buzzer automatisch zurücksetzen nach Bewertung
+    rooms[room].buzzOrder = [];
+    io.to(room).emit("resetBuzz");
+
     io.to(room).emit("playerUpdate", {
       players: rooms[room].players,
       showPoints: rooms[room].settings.showPoints,
@@ -162,7 +167,7 @@ io.on("connection", (socket) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.0.5)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.0.6)");
 });
 
 http.listen(PORT, () => {
