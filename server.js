@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.3)");
+  res.send("✅ Buzzer-Backend läuft (v0.3.1)");
 });
 
 io.on("connection", (socket) => {
@@ -60,7 +60,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("result", ({ room, name, type }) => {
-    if (!rooms[room]) return;
+    if (!rooms[room] || !name || !type) return;
     const r = rooms[room];
     const delta = type === "correct" ? r.pointsRight : r.pointsWrong;
     if (r.players[name] !== undefined) {
