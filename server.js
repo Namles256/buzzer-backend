@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.3.8.6)");
+  res.send("✅ Buzzer-Backend läuft (v0.3.8.7)");
 });
 
 io.on("connection", (socket) => {
