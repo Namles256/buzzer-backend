@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.3.8.8)");
+  res.send("✅ Buzzer-Backend läuft (v0.3.8.9)");
 });
 
 io.on("connection", (socket) => {
@@ -76,6 +76,7 @@ io.on("connection", (socket) => {
       r.buzzBlocked = true;
       io.to(room).emit("buzzBlocked");
       io.to(r.host).emit("buzz", { name });
+      io.to(room).emit("buzzSound", { name }); // Alle hören den Sound
     }
 
     if (r.buzzMode === "multi") {
@@ -85,6 +86,8 @@ io.on("connection", (socket) => {
       io.to(r.host).emit("buzzOrderUpdate", r.buzzOrder);
       io.to(socket.id).emit("buzzBlocked");
       io.to(r.host).emit("buzz", { name });
+      io.to(r.host).emit("buzzSound", { name });
+      io.to(socket.id).emit("buzzSound", { name });
     }
   });
 
@@ -92,20 +95,26 @@ io.on("connection", (socket) => {
     const r = rooms[room];
     if (!r) return;
 
+    const updates = [];
+
     if (type === "correct") {
       if (r.players[name] !== undefined) {
         r.players[name] += r.pointsRight;
+        updates.push({ name, delta: r.pointsRight });
       }
+      io.to(room).emit("resultSound", "correct");
     } else if (type === "wrong") {
       if (r.players[name] !== undefined) {
         r.players[name] += r.pointsWrong;
+        updates.push({ name, delta: r.pointsWrong });
       }
-      // Punkte an andere Spieler vergeben
       Object.keys(r.players).forEach((p) => {
         if (p !== name) {
           r.players[p] += r.pointsOthers;
+          updates.push({ name: p, delta: r.pointsOthers });
         }
       });
+      io.to(room).emit("resultSound", "wrong");
     }
 
     r.buzzBlocked = false;
@@ -113,6 +122,7 @@ io.on("connection", (socket) => {
     r.buzzedPlayers.clear();
     updatePlayers(room);
     io.to(room).emit("resetBuzz");
+    io.to(room).emit("scoreUpdateEffects", updates);
   });
 
   socket.on("resetBuzz", (room) => {
