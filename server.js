@@ -167,7 +167,7 @@ io.on("connection", (socket) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.0.6)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.0.7)");
 });
 
 http.listen(PORT, () => {
