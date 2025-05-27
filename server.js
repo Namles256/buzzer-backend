@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.3.8.7)");
+  res.send("✅ Buzzer-Backend läuft (v0.3.8.8)");
 });
 
 io.on("connection", (socket) => {
@@ -29,6 +29,7 @@ io.on("connection", (socket) => {
         showPoints: true,
         pointsRight: 100,
         pointsWrong: -100,
+        pointsOthers: 0,
         equalMode: true,
         buzzMode: "first",
         buzzBlocked: false,
@@ -50,11 +51,12 @@ io.on("connection", (socket) => {
     updatePlayers(room);
   });
 
-  socket.on("settings", ({ room, showPoints, pointsRight, pointsWrong, equalMode }) => {
+  socket.on("settings", ({ room, showPoints, pointsRight, pointsWrong, pointsOthers, equalMode }) => {
     if (!rooms[room]) return;
     if (showPoints !== undefined) rooms[room].showPoints = showPoints;
     if (pointsRight !== undefined) rooms[room].pointsRight = pointsRight;
     if (pointsWrong !== undefined) rooms[room].pointsWrong = pointsWrong;
+    if (pointsOthers !== undefined) rooms[room].pointsOthers = pointsOthers;
     if (equalMode !== undefined) rooms[room].equalMode = equalMode;
     updatePlayers(room);
   });
@@ -89,10 +91,23 @@ io.on("connection", (socket) => {
   socket.on("result", ({ room, name, type }) => {
     const r = rooms[room];
     if (!r) return;
-    const delta = type === "correct" ? r.pointsRight : r.pointsWrong;
-    if (r.players[name] !== undefined) {
-      r.players[name] += delta;
+
+    if (type === "correct") {
+      if (r.players[name] !== undefined) {
+        r.players[name] += r.pointsRight;
+      }
+    } else if (type === "wrong") {
+      if (r.players[name] !== undefined) {
+        r.players[name] += r.pointsWrong;
+      }
+      // Punkte an andere Spieler vergeben
+      Object.keys(r.players).forEach((p) => {
+        if (p !== name) {
+          r.players[p] += r.pointsOthers;
+        }
+      });
     }
+
     r.buzzBlocked = false;
     r.buzzOrder = [];
     r.buzzedPlayers.clear();
