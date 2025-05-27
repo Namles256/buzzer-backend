@@ -1,6 +1,6 @@
 {
-  "name": "buzzer-v0395",
-  "version": "0.3.9.5",
+  "name": "buzzer-v0396",
+  "version": "0.3.9.6",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

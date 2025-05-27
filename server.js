@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.3.9.5)");
+  res.send("✅ Buzzer-Backend läuft (v0.3.9.6)");
 });
 
 io.on("connection", (socket) => {
@@ -68,9 +68,7 @@ io.on("connection", (socket) => {
   socket.on("adjustPoints", ({ room, name, delta }) => {
     const r = rooms[room];
     if (!r) return;
-    if (!(name in r.players)) {
-      r.players[name] = 0;
-    }
+    if (!(name in r.players)) r.players[name] = 0;
     r.players[name] += delta;
     updatePlayers(room);
     io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
@@ -84,6 +82,10 @@ io.on("connection", (socket) => {
     if (hostId) {
       io.to(hostId).emit("textUpdate", { name, text });
     }
+  });
+
+  socket.on("playSound", ({ room, type }) => {
+    io.to(room).emit("playSound", type);
   });
 
   socket.on("buzzModeChanged", ({ room, mode }) => {
@@ -127,6 +129,7 @@ io.on("connection", (socket) => {
         r.players[name] += r.pointsRight;
         updates.push({ name, delta: r.pointsRight });
       }
+      io.to(room).emit("playSound", "correct");
     } else if (type === "wrong") {
       if (r.players[name] !== undefined) {
         r.players[name] += r.pointsWrong;
@@ -138,6 +141,7 @@ io.on("connection", (socket) => {
           updates.push({ name: p, delta: r.pointsOthers });
         }
       });
+      io.to(room).emit("playSound", "wrong");
     }
 
     r.buzzBlocked = false;
