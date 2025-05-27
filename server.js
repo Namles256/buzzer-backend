@@ -80,8 +80,8 @@ io.on("connection", (socket) => {
       if (r.buzzedPlayers.has(name)) return;
       r.buzzedPlayers.add(name);
       r.buzzOrder.push(name);
-io.to(r.host).emit("buzz", { name });
       io.to(r.host).emit("buzzOrderUpdate", r.buzzOrder);
+      io.to(r.host).emit("buzz", { name });  // 👈 NEU: Buzz wird auch beim Host angezeigt
     }
   });
 
