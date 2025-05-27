@@ -1,4 +1,4 @@
-// server.js – v0.4.0.2
+// server.js – v0.4.0.3
 const express = require("express");
 const app = express();
 const http = require("http").createServer(app);
@@ -58,7 +58,6 @@ io.on("connection", (socket) => {
       if (rooms[room].settings?.showBuzzedPlayerToAll) {
         io.to(room).emit("buzzNameVisible", name);
       }
-      io.to(room).emit("buzzSound"); // ✅ Fix: Buzzsound-Event senden
     }
   });
 
@@ -163,7 +162,7 @@ io.on("connection", (socket) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.0.2)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.0.3)");
 });
 
 http.listen(PORT, () => {
