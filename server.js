@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.3.8.9)");
+  res.send("✅ Buzzer-Backend läuft (v0.3.9.0)");
 });
 
 io.on("connection", (socket) => {
@@ -34,7 +34,8 @@ io.on("connection", (socket) => {
         buzzMode: "first",
         buzzBlocked: false,
         buzzOrder: [],
-        buzzedPlayers: new Set()
+        buzzedPlayers: new Set(),
+        showBuzzedPlayerToAll: true
       };
     }
 
@@ -51,13 +52,14 @@ io.on("connection", (socket) => {
     updatePlayers(room);
   });
 
-  socket.on("settings", ({ room, showPoints, pointsRight, pointsWrong, pointsOthers, equalMode }) => {
+  socket.on("settings", ({ room, showPoints, pointsRight, pointsWrong, pointsOthers, equalMode, showBuzzedPlayerToAll }) => {
     if (!rooms[room]) return;
     if (showPoints !== undefined) rooms[room].showPoints = showPoints;
     if (pointsRight !== undefined) rooms[room].pointsRight = pointsRight;
     if (pointsWrong !== undefined) rooms[room].pointsWrong = pointsWrong;
     if (pointsOthers !== undefined) rooms[room].pointsOthers = pointsOthers;
     if (equalMode !== undefined) rooms[room].equalMode = equalMode;
+    if (showBuzzedPlayerToAll !== undefined) rooms[room].showBuzzedPlayerToAll = showBuzzedPlayerToAll;
     updatePlayers(room);
   });
 
@@ -76,7 +78,10 @@ io.on("connection", (socket) => {
       r.buzzBlocked = true;
       io.to(room).emit("buzzBlocked");
       io.to(r.host).emit("buzz", { name });
-      io.to(room).emit("buzzSound", { name }); // Alle hören den Sound
+      io.to(room).emit("buzzSound", { name });
+      if (r.showBuzzedPlayerToAll) {
+        io.to(room).emit("buzzNameVisible", name);
+      }
     }
 
     if (r.buzzMode === "multi") {
@@ -131,8 +136,8 @@ io.on("connection", (socket) => {
     r.buzzBlocked = false;
     r.buzzOrder = [];
     r.buzzedPlayers.clear();
-    io.to(room).emit("resetBuzz");
     updatePlayers(room);
+    io.to(room).emit("resetBuzz");
   });
 });
 
