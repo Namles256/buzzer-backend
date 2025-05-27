@@ -1,140 +1,124 @@
-// Version 0.3.8.6
 const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+
 const app = express();
-const http = require("http").createServer(app);
-const io = require("socket.io")(http, {
+const server = http.createServer(app);
+const io = new Server(server, {
   cors: {
     origin: "*",
-  },
+    methods: ["GET", "POST"]
+  }
 });
-const PORT = process.env.PORT || 3000;
 
-let participants = {};
-let buzzedOrder = [];
-let buzzerLocked = false;
-let gamemasterId = null;
-let buzzMode = "first"; // "first" or "multi"
-let showPointsToParticipants = true;
-let pointsRight = 1;
-let pointsWrong = 0;
-let useNegativePoints = false;
+const rooms = {};
 
-app.use(express.static("public"));
+app.get("/", (req, res) => {
+  res.send("✅ Buzzer-Backend läuft (v0.3.8.4)");
+});
 
 io.on("connection", (socket) => {
-  console.log("Teilnehmer verbunden:", socket.id);
+  socket.on("join", ({ name, room, isHost }) => {
+    socket.join(room);
+    socket.data = { name, room, isHost };
 
-  socket.on("join", (name, isHost) => {
+    if (!rooms[room]) {
+      rooms[room] = {
+        players: {},
+        host: null,
+        showPoints: true,
+        pointsRight: 100,
+        pointsWrong: -100,
+        equalMode: true,
+        buzzMode: "first",
+        buzzBlocked: false,
+        buzzOrder: [],
+        buzzedPlayers: new Set()
+      };
+    }
+
     if (isHost) {
-      gamemasterId = socket.id;
-      console.log("Host ist verbunden:", socket.id);
-      sendFullState();
-      return;
-    }
-
-    participants[socket.id] = { name, points: 0 };
-    io.to(gamemasterId).emit("participantsUpdate", participants);
-    sendFullState();
-  });
-
-  socket.on("setBuzzMode", (mode) => {
-    buzzMode = mode;
-    console.log("Buzzmodus gesetzt auf:", mode);
-    io.to(gamemasterId).emit("buzzModeSet", buzzMode);
-  });
-
-  socket.on("buzz", () => {
-    if (buzzMode === "first" && buzzerLocked) return;
-    if (!participants[socket.id]) return;
-    if (buzzedOrder.includes(socket.id)) return;
-
-    buzzedOrder.push(socket.id);
-    if (buzzMode === "first") buzzerLocked = true;
-
-    sendFullState();
-  });
-
-  socket.on("resetBuzzer", () => {
-    buzzedOrder = [];
-    buzzerLocked = false;
-    sendFullState();
-  });
-
-  socket.on("setPointOptions", (data) => {
-    pointsRight = parseInt(data.right) || 1;
-    pointsWrong = parseInt(data.wrong) || 0;
-    useNegativePoints = !!data.allowNegative;
-    sendFullState();
-  });
-
-  socket.on("awardPoints", ({ correct }) => {
-    if (buzzedOrder.length === 0) return;
-
-    const firstId = buzzedOrder[0];
-    if (!participants[firstId]) return;
-
-    if (correct) {
-      participants[firstId].points += pointsRight;
+      rooms[room].host = socket.id;
+      socket.emit("buzzModeSet", rooms[room].buzzMode);
     } else {
-      const penalty = useNegativePoints ? -Math.abs(pointsWrong) : 0;
-      participants[firstId].points += penalty;
+      if (!rooms[room].players[name]) {
+        rooms[room].players[name] = 0;
+      }
+      socket.emit("buzzModeSet", rooms[room].buzzMode);
     }
 
-    buzzedOrder = [];
-    buzzerLocked = false;
-    sendFullState();
+    updatePlayers(room);
   });
 
-  socket.on("togglePointsVisibility", (show) => {
-    showPointsToParticipants = show;
-    sendFullState();
+  socket.on("settings", ({ room, showPoints, pointsRight, pointsWrong, equalMode }) => {
+    if (!rooms[room]) return;
+    if (showPoints !== undefined) rooms[room].showPoints = showPoints;
+    if (pointsRight !== undefined) rooms[room].pointsRight = pointsRight;
+    if (pointsWrong !== undefined) rooms[room].pointsWrong = pointsWrong;
+    if (equalMode !== undefined) rooms[room].equalMode = equalMode;
+    updatePlayers(room);
   });
 
-  socket.on("disconnect", () => {
-    console.log("Verbindung getrennt:", socket.id);
-    delete participants[socket.id];
-    buzzedOrder = buzzedOrder.filter((id) => id !== socket.id);
-    sendFullState();
+  socket.on("buzzModeChanged", ({ room, mode }) => {
+    if (rooms[room]) {
+      rooms[room].buzzMode = mode;
+      io.to(room).emit("buzzModeSet", mode);
+    }
   });
 
-  function sendFullState() {
-    const buzzList = buzzedOrder.map((id) => participants[id]?.name || "Unbekannt");
+  socket.on("buzz", ({ room, name }) => {
+    const r = rooms[room];
+    if (!r || r.buzzBlocked) return;
 
-    // Für Host
-    io.to(gamemasterId).emit("participantsUpdate", participants);
-    io.to(gamemasterId).emit("buzzedList", buzzList);
+    if (r.buzzMode === "first") {
+      r.buzzBlocked = true;
+      io.to(room).emit("buzzBlocked");
+      io.to(r.host).emit("buzz", { name });
+    }
 
-    // Für alle Teilnehmer
-    Object.entries(participants).forEach(([id, info]) => {
-      const isBuzzed = buzzedOrder.includes(id);
-      const locked = buzzMode === "first" ? buzzerLocked : isBuzzed;
-      const buzzRank = buzzedOrder.indexOf(id);
-      io.to(id).emit("buzzUpdate", {
-        locked,
-        showBuzzRank: buzzRank >= 0 ? buzzRank + 1 : null,
-        points: info.points,
-        showPoints: showPointsToParticipants,
-        participants: showPointsToParticipants
-          ? getParticipantList()
-          : getNameList(),
-      });
-    });
-  }
+    if (r.buzzMode === "multi") {
+      if (r.buzzedPlayers.has(name)) return;
+      r.buzzedPlayers.add(name);
+      r.buzzOrder.push(name);
+      io.to(r.host).emit("buzzOrderUpdate", r.buzzOrder);
+      io.to(socket.id).emit("buzzBlocked"); // 👈 Nur dieser Spieler wird blockiert
+      io.to(r.host).emit("buzz", { name });
+    }
+  });
 
-  function getParticipantList() {
-    return Object.values(participants).map((p) => ({
-      name: p.name,
-      points: p.points,
-    }));
-  }
+  socket.on("result", ({ room, name, type }) => {
+    const r = rooms[room];
+    if (!r) return;
+    const delta = type === "correct" ? r.pointsRight : r.pointsWrong;
+    if (r.players[name] !== undefined) {
+      r.players[name] += delta;
+    }
+    r.buzzBlocked = false;
+    r.buzzOrder = [];
+    r.buzzedPlayers.clear();
+    updatePlayers(room);
+    io.to(room).emit("resetBuzz");
+  });
 
-  function getNameList() {
-    return Object.values(participants).map((p) => ({
-      name: p.name,
-    }));
-  }
+  socket.on("resetBuzz", (room) => {
+    const r = rooms[room];
+    if (!r) return;
+    r.buzzBlocked = false;
+    r.buzzOrder = [];
+    r.buzzedPlayers.clear();
+    io.to(room).emit("resetBuzz");
+    updatePlayers(room);
+  });
 });
 
-http.listen(PORT, () => {
-  console.log("Server läuft auf Port", PORT);
-});
+function updatePlayers(room) {
+  const r = rooms[room];
+  if (!r) return;
+  io.to(room).emit("playerUpdate", {
+    players: r.players,
+    showPoints: r.showPoints,
+    buzzOrder: r.buzzOrder
+  });
+}
+
+server.listen(3000);
