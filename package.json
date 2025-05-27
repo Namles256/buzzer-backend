@@ -1,6 +1,6 @@
 {
   "name": "buzzer-backend",
-  "version": "0.3.8.4",
+  "version": "0.3.8.5",
   "description": "Backend für Spielshow-Buzzer",
   "main": "server.js",
   "scripts": {
