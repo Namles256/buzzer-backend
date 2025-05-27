@@ -1,102 +1,147 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
+// main.js – v0.3.8.2
+const socket = io("https://buzzer-backend-a8ub.onrender.com");
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
+let name = "";
+let room = "";
+let isHost = false;
+let showPoints = true;
+let pointsRight = 100;
+let pointsWrong = -100;
+let equalMode = true;
+let lastBuzz = null;
+let buzzMode = "first";
+let hasBuzzed = false;
+let buzzDisabled = false;
 
-const rooms = {};
+const root = document.getElementById("root");
 
-app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.3.8.1)");
-});
+function renderJoinScreen() {
+  root.innerHTML = `
+    <h2>Buzzer v0.3.8.2</h2>
+    <input id="nameInput" placeholder="Dein Name"><br/><br/>
+    <input id="roomInput" placeholder="Raum-Code"><br/><br/>
+    <label><input type="checkbox" id="hostCheck"/> Ich bin Host</label><br/><br/>
+    <button id="joinBtn">Beitreten</button>
+  `;
+  document.getElementById("joinBtn").onclick = () => {
+    name = document.getElementById("nameInput").value;
+    room = document.getElementById("roomInput").value;
+    isHost = document.getElementById("hostCheck").checked;
+    socket.emit("join", { name, room, isHost });
+    renderGameScreen();
+  };
+}
 
-io.on("connection", (socket) => {
-  socket.on("join", ({ name, room, isHost }) => {
-    socket.join(room);
-    socket.data = { name, room, isHost };
-
-    if (!rooms[room]) {
-      rooms[room] = {
-        players: {},
-        host: null,
-        showPoints: true,
-        pointsRight: 100,
-        pointsWrong: -100,
-        equalMode: true
-      };
-    }
-
-    if (isHost) {
-      rooms[room].host = socket.id;
-    } else {
-      if (!rooms[room].players[name]) {
-        rooms[room].players[name] = 0;
+function renderGameScreen(players = {}) {
+  if (isHost) {
+    root.innerHTML = `
+      <h2>Host – Raum: ${room}</h2>
+      <label><input type="checkbox" id="togglePoints" ${showPoints ? "checked" : ""}/> Punkteliste für Teilnehmer anzeigen</label><br/>
+      <label><input type="checkbox" id="equalMode" ${equalMode ? "checked" : ""}/> ✅ und ❌ gleich bewerten</label><br/>
+      <label>Punkte für ✅: <input id="pointsRight" type="number" value="${pointsRight}" /></label><br/>
+      <label id="wrongLabel" style="display:${equalMode ? "none" : "inline"}">
+        Punkte für ❌: <input id="pointsWrong" type="number" value="${pointsWrong}" />
+      </label><br/>
+      <label>Buzz-Modus:
+        <select id="buzzModeSelect">
+          <option value="first" ${buzzMode === "first" ? "selected" : ""}>Nur erster darf buzzern</option>
+          <option value="multi" ${buzzMode === "multi" ? "selected" : ""}>Mehrere dürfen buzzern</option>
+        </select>
+      </label><br/><br/>
+      <button id="correctBtn">✅ Richtig</button>
+      <button id="wrongBtn">❌ Falsch</button>
+      <button id="resetBtn">🔁 Buzzer freigeben</button>
+      <div id="buzzInfo">${lastBuzz ? "🔔 " + lastBuzz + " hat gebuzzert!" : ""}</div>
+      <div id="playerHeader"><strong>Teilnehmer:</strong></div><div style="margin-bottom:10px;"></div><div id="playerList"></div>
+    `;
+    document.getElementById("togglePoints").onchange = (e) => {
+      showPoints = e.target.checked;
+      sendSettings();
+    };
+    document.getElementById("equalMode").onchange = (e) => {
+      equalMode = e.target.checked;
+      document.getElementById("wrongLabel").style.display = equalMode ? "none" : "inline";
+      sendSettings();
+    };
+    document.getElementById("pointsRight").onchange = (e) => {
+      pointsRight = parseFloat(e.target.value);
+      sendSettings();
+    };
+    document.getElementById("pointsWrong").onchange = (e) => {
+      pointsWrong = parseFloat(e.target.value);
+      sendSettings();
+    };
+    document.getElementById("buzzModeSelect").onchange = (e) => {
+      buzzMode = e.target.value;
+      socket.emit("buzzModeChanged", { room, mode: buzzMode });
+    };
+    document.getElementById("correctBtn").onclick = () => {
+      if (lastBuzz) {
+        socket.emit("result", { room, name: lastBuzz, type: "correct" });
+        lastBuzz = null;
       }
-    }
-
-    updatePlayers(room);
-  });
-
-  socket.on("settings", ({ room, showPoints, pointsRight, pointsWrong, equalMode }) => {
-    if (!rooms[room]) return;
-    if (showPoints !== undefined) rooms[room].showPoints = showPoints;
-    if (pointsRight !== undefined) rooms[room].pointsRight = pointsRight;
-    if (pointsWrong !== undefined) rooms[room].pointsWrong = pointsWrong;
-    if (equalMode !== undefined) rooms[room].equalMode = equalMode;
-    updatePlayers(room);
-  });
-
-  socket.on("buzz", ({ room, name }) => {
-    if (rooms[room] && rooms[room].host) {
-      io.to(rooms[room].host).emit("buzz", { name });
-    }
-  });
-
-  socket.on("result", ({ room, name, type }) => {
-    if (!rooms[room]) return;
-    const r = rooms[room];
-    const delta = type === "correct" ? r.pointsRight : r.pointsWrong;
-    if (r.players[name] !== undefined) {
-      r.players[name] += delta;
-    }
-    updatePlayers(room);
-  });
-
-  socket.on("resetBuzz", (room) => {
-    io.to(room).emit("resetBuzz");
-    const players = rooms[room] ? rooms[room].players : {};
-    io.to(room).emit("playerUpdate", { players, showPoints: rooms[room]?.showPoints });
-});
-
-  socket.on("disconnect", () => {
-    const { room, name, isHost } = socket.data || {};
-    if (room && rooms[room] && !isHost) {
-      delete rooms[room].players[name];
-      updatePlayers(room);
-    }
-  });
-
-  function updatePlayers(room) {
-    const r = rooms[room];
-    const data = r.showPoints ? r.players : Object.fromEntries(Object.keys(r.players).map(p => [p, null]));
-    if (r.host) {
-      io.to(r.host).emit("players", r.players);
-    }
-    for (const [id, s] of io.of("/").sockets) {
-      if (s.data.room === room && !s.data.isHost) {
-        io.to(id).emit("players", data);
+    };
+    document.getElementById("wrongBtn").onclick = () => {
+      if (lastBuzz) {
+        socket.emit("result", { room, name: lastBuzz, type: "wrong" });
+        lastBuzz = null;
       }
-    }
+    };
+    document.getElementById("resetBtn").onclick = () => {
+      socket.emit("resetBuzz", room);
+      lastBuzz = null;
+    };
+  } else {
+    root.innerHTML = `
+      <h2>Raum: ${room}</h2>
+      <button id="buzzBtn">🔔 Buzz!</button>
+      <div id="buzzInfo"></div>
+      <div id="playerHeader"><strong>Teilnehmer:</strong></div><div style="margin-bottom:10px;"></div><div id="playerList"></div>
+    `;
+    document.getElementById("buzzBtn").onclick = () => {
+      if (buzzDisabled || hasBuzzed) return;
+      socket.emit("buzz", { room, name });
+      if (buzzMode === "multi") hasBuzzed = true;
+    };
   }
+}
+
+function sendSettings() {
+  socket.emit("settings", {
+    room,
+    showPoints,
+    pointsRight,
+    pointsWrong,
+    equalMode
+  });
+}
+
+socket.on("playerUpdate", ({ players, showPoints: sp }) => {
+  const playerList = document.getElementById("playerList");
+  if (!playerList) return;
+  playerList.innerHTML = "";
+  Object.entries(players).forEach(([name, points]) => {
+    const div = document.createElement("div");
+    div.textContent = sp ? `${name}: ${points} Punkte` : name;
+    playerList.appendChild(div);
+  });
 });
 
-server.listen(3001, () => {
-  console.log("🚀 Server läuft auf Port 3001");
+socket.on("buzzBlocked", () => {
+  buzzDisabled = true;
+  const btn = document.getElementById("buzzBtn");
+  if (btn) btn.disabled = true;
 });
+
+socket.on("buzzOrderUpdate", (orderList) => {
+  const infoDiv = document.getElementById("buzzInfo");
+  if (infoDiv) infoDiv.innerHTML = "🔔 Buzz-Reihenfolge:<br/>" + orderList.map((n, i) => `${i + 1}. ${n}`).join("<br/>");
+});
+
+socket.on("buzzModeSet", (mode) => {
+  buzzMode = mode;
+  hasBuzzed = false;
+  buzzDisabled = false;
+});
+
+renderJoinScreen();
