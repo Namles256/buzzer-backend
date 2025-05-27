@@ -1,4 +1,4 @@
-// server.js – v0.4.0.1
+// server.js – v0.4.0.2
 const express = require("express");
 const app = express();
 const http = require("http").createServer(app);
@@ -163,7 +163,7 @@ io.on("connection", (socket) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.0.1)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.0.2)");
 });
 
 http.listen(PORT, () => {
