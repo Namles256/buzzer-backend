@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.3.1)");
+  res.send("✅ Buzzer-Backend läuft (v0.3.2)");
 });
 
 io.on("connection", (socket) => {
@@ -60,7 +60,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("result", ({ room, name, type }) => {
-    if (!rooms[room] || !name || !type) return;
+    if (!rooms[room]) return;
     const r = rooms[room];
     const delta = type === "correct" ? r.pointsRight : r.pointsWrong;
     if (r.players[name] !== undefined) {
@@ -83,7 +83,7 @@ io.on("connection", (socket) => {
 
   function updatePlayers(room) {
     const r = rooms[room];
-    const data = r.showPoints ? r.players : Object.fromEntries(Object.keys(r.players).map(p => [p, 0]));
+    const data = r.showPoints ? r.players : Object.fromEntries(Object.keys(r.players).map(p => [p, null]));
     if (r.host) {
       io.to(r.host).emit("players", r.players);
     }
