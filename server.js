@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.3.8.4)");
+  res.send("✅ Buzzer-Backend läuft (v0.3.8.5)");
 });
 
 io.on("connection", (socket) => {
@@ -81,7 +81,7 @@ io.on("connection", (socket) => {
       r.buzzedPlayers.add(name);
       r.buzzOrder.push(name);
       io.to(r.host).emit("buzzOrderUpdate", r.buzzOrder);
-      io.to(socket.id).emit("buzzBlocked"); // 👈 Nur dieser Spieler wird blockiert
+      io.to(socket.id).emit("buzzBlocked");
       io.to(r.host).emit("buzz", { name });
     }
   });
