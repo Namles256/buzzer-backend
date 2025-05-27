@@ -1,4 +1,3 @@
-
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -15,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.3.8.2)");
+  res.send("✅ Buzzer-Backend läuft (v0.3.8.3)");
 });
 
 io.on("connection", (socket) => {
@@ -81,6 +80,7 @@ io.on("connection", (socket) => {
       if (r.buzzedPlayers.has(name)) return;
       r.buzzedPlayers.add(name);
       r.buzzOrder.push(name);
+io.to(r.host).emit("buzz", { name });
       io.to(r.host).emit("buzzOrderUpdate", r.buzzOrder);
     }
   });
