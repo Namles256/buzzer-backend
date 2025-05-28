@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.2.1)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.1.0)");
 });
 
 io.on("connection", (socket) => {
@@ -49,8 +49,6 @@ io.on("connection", (socket) => {
       if (rooms[room].buzzMode === "first" && rooms[room].buzzedNamePersistent) {
         socket.emit("buzz", { name: rooms[room].buzzedNamePersistent });
       }
-      // Send buzzOrderUpdate to host on join for buzz order display
-      socket.emit("buzzOrderUpdate", rooms[room].buzzOrder);
     } else {
       if (!rooms[room].players[name]) {
         rooms[room].players[name] = 0;
