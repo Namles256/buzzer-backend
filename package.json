@@ -1,6 +1,7 @@
 {
-  "name": "buzzer-v0409",
-  "version": "0.4.0.9",
+  "name": "buzzer-backend",
+  "version": "0.4.1.0",
+  "description": "Backend für Buzzer Spielshow",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

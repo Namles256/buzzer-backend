@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.0.9)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.1.0)");
 });
 
 io.on("connection", (socket) => {
@@ -44,6 +44,8 @@ io.on("connection", (socket) => {
     if (!isHost) {
       rooms[room].players[name] = 0;
       updatePlayers(room);
+      // beim Betreten direkt den aktuellen Textlock-Zustand senden
+      socket.emit("lockTexts", { locked: rooms[room].textLocked });
     }
   });
 
@@ -158,7 +160,6 @@ io.on("connection", (socket) => {
   function updatePlayers(room) {
     const data = rooms[room];
     if (!data) return;
-    const hostSocket = io.sockets.sockets.get(data.hostId);
     const players = data.players;
     const showPoints = data.showPoints;
     const buzzedOrder = data.buzzedPlayers;
@@ -174,5 +175,5 @@ io.on("connection", (socket) => {
 });
 
 server.listen(3000, () => {
-  console.log("Server läuft auf Port 3000 (v0.4.0.9)");
+  console.log("Server läuft auf Port 3000 (v0.4.1.0)");
 });
