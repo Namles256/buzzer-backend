@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.2.0)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.2.1)");
 });
 
 io.on("connection", (socket) => {
@@ -38,9 +38,7 @@ io.on("connection", (socket) => {
         buzzedPlayers: new Set(),
         showBuzzedPlayerToAll: true,
         inputLocked: false,
-        buzzedNamePersistent: null,
-        multiBuzzedNames: new Set(),
-        lastBuzzName: null  // Neu für zentrales Buzz-Fenster
+        buzzedNamePersistent: null
       };
     }
 
@@ -51,9 +49,8 @@ io.on("connection", (socket) => {
       if (rooms[room].buzzMode === "first" && rooms[room].buzzedNamePersistent) {
         socket.emit("buzz", { name: rooms[room].buzzedNamePersistent });
       }
-      if (rooms[room].lastBuzzName) {
-        socket.emit("centralBuzzDisplay", rooms[room].lastBuzzName);
-      }
+      // Send buzzOrderUpdate to host on join for buzz order display
+      socket.emit("buzzOrderUpdate", rooms[room].buzzOrder);
     } else {
       if (!rooms[room].players[name]) {
         rooms[room].players[name] = 0;
@@ -99,8 +96,6 @@ io.on("connection", (socket) => {
     if (rooms[room]) {
       rooms[room].buzzMode = mode;
       rooms[room].buzzedNamePersistent = null;
-      rooms[room].multiBuzzedNames.clear();
-      rooms[room].lastBuzzName = null;
       io.to(room).emit("buzzModeSet", mode);
     }
   });
@@ -109,14 +104,11 @@ io.on("connection", (socket) => {
     const r = rooms[room];
     if (!r || r.buzzBlocked) return;
 
-    r.lastBuzzName = name;  // Setze zentral für Anzeige
-
     if (r.buzzMode === "first") {
       r.buzzBlocked = true;
       r.buzzedNamePersistent = name;
       io.to(room).emit("buzzBlocked");
       io.to(r.host).emit("buzz", { name });
-      io.to(r.host).emit("centralBuzzDisplay", name);
       if (r.showBuzzedPlayerToAll) {
         io.to(room).emit("buzzNameVisible", name);
       }
@@ -128,7 +120,6 @@ io.on("connection", (socket) => {
       r.buzzOrder.push(name);
       io.to(r.host).emit("buzzOrderUpdate", r.buzzOrder);
       io.to(r.host).emit("buzz", { name });
-      io.to(r.host).emit("centralBuzzDisplay", name);
       io.to(socket.id).emit("buzzBlocked");
     }
   });
@@ -161,8 +152,6 @@ io.on("connection", (socket) => {
     r.buzzOrder = [];
     r.buzzedPlayers.clear();
     r.buzzedNamePersistent = null;
-    r.multiBuzzedNames.clear();
-    r.lastBuzzName = null;
     updatePlayers(room);
     io.to(room).emit("resetBuzz");
     io.to(room).emit("scoreUpdateEffects", updates);
@@ -175,8 +164,6 @@ io.on("connection", (socket) => {
     r.buzzOrder = [];
     r.buzzedPlayers.clear();
     r.buzzedNamePersistent = null;
-    r.multiBuzzedNames.clear();
-    r.lastBuzzName = null;
     updatePlayers(room);
     io.to(room).emit("resetBuzz");
   });
