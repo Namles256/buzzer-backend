@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.0.7)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.0.8)");
 });
 
 io.on("connection", (socket) => {
@@ -36,19 +36,22 @@ io.on("connection", (socket) => {
         buzzBlocked: false,
         buzzOrder: [],
         buzzedPlayers: new Set(),
-        showBuzzedPlayerToAll: true
+        showBuzzedPlayerToAll: true,
+        inputLocked: false
       };
     }
 
     if (isHost) {
       rooms[room].host = socket.id;
       socket.emit("buzzModeSet", rooms[room].buzzMode);
+      socket.emit("inputLockStatus", rooms[room].inputLocked);
     } else {
       if (!rooms[room].players[name]) {
         rooms[room].players[name] = 0;
         rooms[room].playerTexts[name] = "";
       }
       socket.emit("buzzModeSet", rooms[room].buzzMode);
+      socket.emit("inputLockStatus", rooms[room].inputLocked);
     }
 
     updatePlayers(room);
@@ -155,8 +158,11 @@ io.on("connection", (socket) => {
     io.to(room).emit("resetBuzz");
   });
 
-  socket.on("lockTexts", (room) => {
-    io.to(room).emit("lockTexts");
+  socket.on("lockTexts", ({ room, locked }) => {
+    const r = rooms[room];
+    if (!r) return;
+    r.inputLocked = locked;
+    io.to(room).emit("inputLockStatus", locked);
   });
 
   socket.on("clearTexts", (room) => {
