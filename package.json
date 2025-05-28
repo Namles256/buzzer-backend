@@ -1,6 +1,7 @@
 {
-  "name": "buzzer-v0411",
-  "version": "0.4.1.1",
+  "name": "buzzer-app",
+  "version": "0.4.1.2",
+  "description": "Live Multiplayer Buzzer",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
