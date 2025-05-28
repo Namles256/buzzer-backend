@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.0.6)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.0.7)");
 });
 
 io.on("connection", (socket) => {
@@ -153,6 +153,20 @@ io.on("connection", (socket) => {
     r.buzzedPlayers.clear();
     updatePlayers(room);
     io.to(room).emit("resetBuzz");
+  });
+
+  socket.on("lockTexts", (room) => {
+    io.to(room).emit("lockTexts");
+  });
+
+  socket.on("clearTexts", (room) => {
+    const r = rooms[room];
+    if (!r) return;
+    Object.keys(r.playerTexts).forEach(name => {
+      r.playerTexts[name] = "";
+    });
+    updatePlayers(room);
+    io.to(room).emit("clearTexts");
   });
 });
 
