@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.0.8)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.0.9)");
 });
 
 io.on("connection", (socket) => {
@@ -37,7 +37,8 @@ io.on("connection", (socket) => {
         buzzOrder: [],
         buzzedPlayers: new Set(),
         showBuzzedPlayerToAll: true,
-        inputLocked: false
+        inputLocked: false,
+        buzzedNamePersistent: null  // Neu: Merkt wer gebuzzert hat im first-Modus
       };
     }
 
@@ -45,6 +46,10 @@ io.on("connection", (socket) => {
       rooms[room].host = socket.id;
       socket.emit("buzzModeSet", rooms[room].buzzMode);
       socket.emit("inputLockStatus", rooms[room].inputLocked);
+      // Sende ggf. persistent buzzed Name im first-Modus an den Host
+      if (rooms[room].buzzMode === "first" && rooms[room].buzzedNamePersistent) {
+        socket.emit("buzz", { name: rooms[room].buzzedNamePersistent });
+      }
     } else {
       if (!rooms[room].players[name]) {
         rooms[room].players[name] = 0;
@@ -89,6 +94,8 @@ io.on("connection", (socket) => {
   socket.on("buzzModeChanged", ({ room, mode }) => {
     if (rooms[room]) {
       rooms[room].buzzMode = mode;
+      // Reset persistent buzzedName when changing mode
+      rooms[room].buzzedNamePersistent = null;
       io.to(room).emit("buzzModeSet", mode);
     }
   });
@@ -99,6 +106,7 @@ io.on("connection", (socket) => {
 
     if (r.buzzMode === "first") {
       r.buzzBlocked = true;
+      r.buzzedNamePersistent = name; // Speichern für persistenten Highlight
       io.to(room).emit("buzzBlocked");
       io.to(r.host).emit("buzz", { name });
       if (r.showBuzzedPlayerToAll) {
@@ -143,6 +151,7 @@ io.on("connection", (socket) => {
     r.buzzBlocked = false;
     r.buzzOrder = [];
     r.buzzedPlayers.clear();
+    r.buzzedNamePersistent = null;  // Reset persistent highlight
     updatePlayers(room);
     io.to(room).emit("resetBuzz");
     io.to(room).emit("scoreUpdateEffects", updates);
@@ -154,6 +163,7 @@ io.on("connection", (socket) => {
     r.buzzBlocked = false;
     r.buzzOrder = [];
     r.buzzedPlayers.clear();
+    r.buzzedNamePersistent = null;  // Reset persistent highlight
     updatePlayers(room);
     io.to(room).emit("resetBuzz");
   });
