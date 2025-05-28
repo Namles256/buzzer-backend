@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.1.0)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.1.1)");
 });
 
 io.on("connection", (socket) => {
@@ -48,6 +48,7 @@ io.on("connection", (socket) => {
       socket.emit("inputLockStatus", rooms[room].inputLocked);
       if (rooms[room].buzzMode === "first" && rooms[room].buzzedNamePersistent) {
         socket.emit("buzz", { name: rooms[room].buzzedNamePersistent });
+        socket.emit("buzzNameVisible", rooms[room].buzzedNamePersistent);
       }
     } else {
       if (!rooms[room].players[name]) {
@@ -107,6 +108,7 @@ io.on("connection", (socket) => {
       r.buzzedNamePersistent = name;
       io.to(room).emit("buzzBlocked");
       io.to(r.host).emit("buzz", { name });
+      io.to(r.host).emit("buzzNameVisible", name);
       if (r.showBuzzedPlayerToAll) {
         io.to(room).emit("buzzNameVisible", name);
       }
