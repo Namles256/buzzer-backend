@@ -19,15 +19,12 @@ app.get("/", (req, res) => {
 
 io.on("connection", (socket) => {
   socket.on("startTimer", ({ room, duration, label, disableSound }) => {
-    socket.to(room).emit("timerStart", { duration, label, disableSound });
   });
 
   socket.on("pauseTimer", (room) => {
-    socket.to(room).emit("timerPause");
   });
 
   socket.on("resetTimer", (room) => {
-    socket.to(room).emit("timerReset");
   });
   socket.on("join", ({ name, room, isHost }) => {
     socket.join(room);
@@ -232,13 +229,10 @@ function updatePlayers(room) {
     buzzOrder: r.buzzOrder,
     texts: r.playerTexts || {}
   
-    socket.to(room).emit("timerStart", { duration, label, disableSound });
   });
 
-    socket.to(room).emit("timerPause");
   });
 
-    socket.to(room).emit("timerReset");
   });
 
 });
