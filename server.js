@@ -1,4 +1,3 @@
-
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -15,8 +14,29 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.2.7)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.2.8)");
 });
+
+function getDefaultRoomState() {
+  return {
+    players: {},
+    playerTexts: {},
+    host: null,
+    showPoints: true,
+    pointsRight: 100,
+    pointsWrong: -100,
+    pointsOthers: 0,
+    equalMode: true,
+    buzzMode: "first",
+    buzzBlocked: false,
+    buzzOrder: [],
+    buzzedPlayers: new Set(),
+    showBuzzedPlayerToAll: true,
+    inputLocked: false,
+    buzzedNamePersistent: null,
+    timer: { running: false, endTime: null, paused: false, pausedLeft: 0 }
+  };
+}
 
 io.on("connection", (socket) => {
   socket.on("join", ({ name, room, isHost }) => {
@@ -24,23 +44,7 @@ io.on("connection", (socket) => {
     socket.data = { name, room, isHost };
 
     if (!rooms[room]) {
-      rooms[room] = {
-        players: {},
-        playerTexts: {},
-        host: null,
-        showPoints: true,
-        pointsRight: 100,
-        pointsWrong: -100,
-        pointsOthers: 0,
-        equalMode: true,
-        buzzMode: "first",
-        buzzBlocked: false,
-        buzzOrder: [],
-        buzzedPlayers: new Set(),
-        showBuzzedPlayerToAll: true,
-        inputLocked: false,
-        buzzedNamePersistent: null
-      };
+      rooms[room] = getDefaultRoomState();
     }
 
     if (isHost) {
@@ -50,6 +54,8 @@ io.on("connection", (socket) => {
       if (rooms[room].buzzMode === "first" && rooms[room].buzzedNamePersistent) {
         socket.emit("buzz", { name: rooms[room].buzzedNamePersistent });
       }
+      // Send timer state
+      socket.emit("timerUpdate", getRoomTimer(room));
     } else {
       if (!rooms[room].players[name]) {
         rooms[room].players[name] = 0;
@@ -57,6 +63,8 @@ io.on("connection", (socket) => {
       }
       socket.emit("buzzModeSet", rooms[room].buzzMode);
       socket.emit("inputLockStatus", rooms[room].inputLocked);
+      // Send timer state
+      socket.emit("timerUpdate", getRoomTimer(room));
     }
 
     updatePlayers(room);
@@ -82,6 +90,24 @@ io.on("connection", (socket) => {
     r.players[name] += delta;
     updatePlayers(room);
     io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
+  });
+
+  socket.on("setPoints", ({ room, name, value }) => {
+    const r = rooms[room];
+    if (!r || !(name in r.players)) return;
+    r.players[name] = value;
+    updatePlayers(room);
+    io.to(room).emit("scoreUpdateEffects", [{ name, delta: 0 }]);
+  });
+
+  socket.on("resetAllPoints", ({ room }) => {
+    const r = rooms[room];
+    if (!r) return;
+    Object.keys(r.players).forEach(name => {
+      r.players[name] = 0;
+    });
+    updatePlayers(room);
+    io.to(room).emit("scoreUpdateEffects", []);
   });
 
   socket.on("textUpdate", ({ room, name, text }) => {
@@ -185,6 +211,62 @@ io.on("connection", (socket) => {
     updatePlayers(room);
     io.to(room).emit("clearTexts");
   });
+
+  // === Timer Events ===
+  socket.on("timerStart", ({ room, seconds }) => {
+    if (!rooms[room]) return;
+    const end = Date.now() + seconds * 1000;
+    rooms[room].timer = {
+      running: true,
+      endTime: end,
+      paused: false,
+      pausedLeft: 0
+    };
+    broadcastTimer(room);
+    startRoomTimer(room);
+  });
+
+  socket.on("timerPause", ({ room }) => {
+    if (!rooms[room]) return;
+    let r = rooms[room];
+    if (!r.timer.running || r.timer.paused) return;
+    r.timer.paused = true;
+    r.timer.pausedLeft = Math.max(0, r.timer.endTime - Date.now());
+    r.timer.running = false;
+    broadcastTimer(room);
+  });
+
+  socket.on("timerResume", ({ room }) => {
+    if (!rooms[room]) return;
+    let r = rooms[room];
+    if (!r.timer.paused) return;
+    r.timer.running = true;
+    r.timer.endTime = Date.now() + r.timer.pausedLeft;
+    r.timer.paused = false;
+    broadcastTimer(room);
+    startRoomTimer(room);
+  });
+
+  socket.on("timerReset", ({ room }) => {
+    if (!rooms[room]) return;
+    rooms[room].timer = {
+      running: false,
+      endTime: null,
+      paused: false,
+      pausedLeft: 0
+    };
+    broadcastTimer(room);
+  });
+
+  // === Raum-Reset Event ===
+  socket.on("resetRoom", ({ room }) => {
+    // Kick all clients (except host, optional)
+    io.to(room).emit("kicked");
+    rooms[room] = getDefaultRoomState();
+    updatePlayers(room);
+    broadcastTimer(room);
+  });
+
 });
 
 function updatePlayers(room) {
@@ -196,6 +278,44 @@ function updatePlayers(room) {
     buzzOrder: r.buzzOrder,
     texts: r.playerTexts || {}
   });
+}
+
+function getRoomTimer(room) {
+  if (!rooms[room]) return { running: false, timeLeft: 0, paused: false };
+  let r = rooms[room].timer;
+  let timeLeft = 0;
+  if (r.running) timeLeft = Math.max(0, Math.round((r.endTime - Date.now()) / 1000));
+  else if (r.paused) timeLeft = Math.max(0, Math.round(r.pausedLeft / 1000));
+  return { running: r.running, timeLeft, paused: r.paused };
+}
+
+// send timer update to all in room
+function broadcastTimer(room) {
+  const timer = getRoomTimer(room);
+  io.to(room).emit("timerUpdate", timer);
+}
+
+// host timer ticking function
+const timers = {};
+function startRoomTimer(room) {
+  if (timers[room]) clearInterval(timers[room]);
+  timers[room] = setInterval(() => {
+    let t = getRoomTimer(room);
+    if (!t.running) {
+      clearInterval(timers[room]);
+      return;
+    }
+    broadcastTimer(room);
+    if (t.timeLeft <= 0) {
+      rooms[room].timer.running = false;
+      rooms[room].timer.endTime = null;
+      rooms[room].timer.paused = false;
+      rooms[room].timer.pausedLeft = 0;
+      broadcastTimer(room);
+      io.to(room).emit("timerEnd");
+      clearInterval(timers[room]);
+    }
+  }, 300);
 }
 
 server.listen(3000);
