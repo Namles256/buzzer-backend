@@ -1,4 +1,3 @@
-
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -15,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.2.7)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.4.0)");
 });
 
 io.on("connection", (socket) => {
@@ -82,6 +81,48 @@ io.on("connection", (socket) => {
     r.players[name] += delta;
     updatePlayers(room);
     io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
+  });
+
+  // NEUE EVENTS
+  socket.on("resetAllPoints", ({ room }) => {
+    const r = rooms[room];
+    if (!r) return;
+    Object.keys(r.players).forEach(name => {
+      r.players[name] = 0;
+    });
+    updatePlayers(room);
+    io.to(room).emit("scoreUpdateEffects", []);
+  });
+
+  socket.on("resetRoom", ({ room }) => {
+    if (!rooms[room]) return;
+    io.to(room).emit("kicked"); // Alle Teilnehmer rauswerfen
+    rooms[room] = {
+      players: {},
+      playerTexts: {},
+      host: null,
+      showPoints: true,
+      pointsRight: 100,
+      pointsWrong: -100,
+      pointsOthers: 0,
+      equalMode: true,
+      buzzMode: "first",
+      buzzBlocked: false,
+      buzzOrder: [],
+      buzzedPlayers: new Set(),
+      showBuzzedPlayerToAll: true,
+      inputLocked: false,
+      buzzedNamePersistent: null
+    };
+    updatePlayers(room);
+  });
+
+  socket.on("setPoints", ({ room, name, value }) => {
+    const r = rooms[room];
+    if (!r || !(name in r.players)) return;
+    r.players[name] = value;
+    updatePlayers(room);
+    io.to(room).emit("scoreUpdateEffects", [{ name, delta: 0 }]);
   });
 
   socket.on("textUpdate", ({ room, name, text }) => {
