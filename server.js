@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.5.2)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.5.3)");
 });
 
 io.on("connection", (socket) => {
@@ -220,7 +220,20 @@ function updatePlayers(room) {
     showPoints: r.showPoints,
     buzzOrder: r.buzzOrder,
     texts: r.playerTexts || {}
+  
+  socket.on("startTimer", ({ room, duration, label, disableSound }) => {
+    io.to(room).emit("timerStart", { duration, label, disableSound });
   });
+
+  socket.on("pauseTimer", (room) => {
+    io.to(room).emit("timerPause");
+  });
+
+  socket.on("resetTimer", (room) => {
+    io.to(room).emit("timerReset");
+  });
+
+});
 }
 
 server.listen(3000);
