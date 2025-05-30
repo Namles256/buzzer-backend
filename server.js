@@ -220,25 +220,17 @@ io.on("connection", (socket) => {
   });
 });
 
+
 function updatePlayers(room) {
   const r = rooms[room];
   if (!r) return;
-  socket.to(room).emit("playerUpdate", {
+  io.to(room).emit("playerUpdate", {
     players: r.players,
     showPoints: r.showPoints,
     buzzOrder: r.buzzOrder,
     texts: r.playerTexts || {}
-  
   });
-
-  });
-
-  });
-
-});
 }
 
-server.listen(3000);
 });
-
 server.listen(3000);
