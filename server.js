@@ -165,6 +165,7 @@ io.on("connection", (socket) => {
     if (!r) return;
     r.playerTexts[name] = text;
     updatePlayers(room);
+});
 function updatePlayers(room) {
   const r = rooms[room];
   if (!r) return;
