@@ -231,6 +231,3 @@ function updatePlayers(room) {
     buzzOrder: r.buzzOrder,
     texts: r.playerTexts || {}
   });
-}
-
-server.listen(3000);
