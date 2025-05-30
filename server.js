@@ -14,21 +14,10 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.5.3)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.5.2)");
 });
 
 io.on("connection", (socket) => {
-  socket.on("startTimer", ({ room, duration, label, disableSound }) => {
-    socket.to(room).emit("timerStart", { duration, label, disableSound });
-  });
-
-  socket.on("pauseTimer", (room) => {
-    socket.to(room).emit("timerPause");
-  });
-
-  socket.on("resetTimer", (room) => {
-    socket.to(room).emit("timerReset");
-  });
   socket.on("join", ({ name, room, isHost }) => {
     socket.join(room);
     socket.data = { name, room, isHost };
@@ -92,7 +81,7 @@ io.on("connection", (socket) => {
     }
     r.players[name] += delta;
     updatePlayers(room);
-    socket.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
+    io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
   });
 
   socket.on("setPoints", ({ room, name, points }) => {
@@ -107,7 +96,7 @@ io.on("connection", (socket) => {
     if (rooms[room]) {
       rooms[room].buzzMode = mode;
       rooms[room].buzzedNamePersistent = null;
-      socket.to(room).emit("buzzModeSet", mode);
+      io.to(room).emit("buzzModeSet", mode);
     }
   });
 
@@ -118,10 +107,10 @@ io.on("connection", (socket) => {
     if (r.buzzMode === "first") {
       r.buzzBlocked = true;
       r.buzzedNamePersistent = name;
-      socket.to(room).emit("buzzBlocked");
-      socket.to(room).emit("buzz", { name });
+      io.to(room).emit("buzzBlocked");
+      io.to(room).emit("buzz", { name });
       if (r.showBuzzedPlayerToAll) {
-        socket.to(room).emit("buzzNameVisible", name);
+        io.to(room).emit("buzzNameVisible", name);
       }
     }
 
@@ -130,9 +119,9 @@ io.on("connection", (socket) => {
       r.buzzedPlayers.add(name);
       r.buzzOrder.push(name);
       updatePlayers(room);
-      socket.to(r.host).emit("buzzOrderUpdate", r.buzzOrder);
-      socket.to(room).emit("buzz", { name });
-      socket.to(socket.id).emit("buzzBlocked");
+      io.to(r.host).emit("buzzOrderUpdate", r.buzzOrder);
+      io.to(room).emit("buzz", { name });
+      io.to(socket.id).emit("buzzBlocked");
     }
   });
 
@@ -147,7 +136,7 @@ io.on("connection", (socket) => {
         r.players[name] += r.pointsRight;
         updates.push({ name, delta: r.pointsRight });
       }
-      socket.to(room).emit("playAnswerSound", { type: "correct" });
+      io.to(room).emit("playAnswerSound", { type: "correct" });
     } else if (type === "wrong") {
       if (r.players[name] !== undefined) {
         r.players[name] += r.pointsWrong;
@@ -159,7 +148,7 @@ io.on("connection", (socket) => {
           updates.push({ name: p, delta: r.pointsOthers });
         }
       });
-      socket.to(room).emit("playAnswerSound", { type: "wrong" });
+      io.to(room).emit("playAnswerSound", { type: "wrong" });
     }
 
     r.buzzBlocked = false;
@@ -167,8 +156,8 @@ io.on("connection", (socket) => {
     r.buzzedPlayers.clear();
     r.buzzedNamePersistent = null;
     updatePlayers(room);
-    socket.to(room).emit("resetBuzz");
-    socket.to(room).emit("scoreUpdateEffects", updates);
+    io.to(room).emit("resetBuzz");
+    io.to(room).emit("scoreUpdateEffects", updates);
   });
 
   socket.on("resetBuzz", (room) => {
@@ -179,13 +168,13 @@ io.on("connection", (socket) => {
     r.buzzedPlayers.clear();
     r.buzzedNamePersistent = null;
     updatePlayers(room);
-    socket.to(room).emit("resetBuzz");
+    io.to(room).emit("resetBuzz");
   });
 
   socket.on("resetRoom", (room) => {
     const r = rooms[room];
     if (!r) return;
-    socket.to(room).emit("roomReset");
+    io.to(room).emit("roomReset");
     delete rooms[room];
   });
 
@@ -196,14 +185,14 @@ io.on("connection", (socket) => {
       r.players[player] = 0;
     });
     updatePlayers(room);
-    socket.to(room).emit("scoreUpdateEffects", Object.keys(r.players).map(name => ({ name, delta: 0 })));
+    io.to(room).emit("scoreUpdateEffects", Object.keys(r.players).map(name => ({ name, delta: 0 })));
   });
 
   socket.on("lockTexts", ({ room, locked }) => {
     const r = rooms[room];
     if (!r) return;
     r.inputLocked = locked;
-    socket.to(room).emit("inputLockStatus", locked);
+    io.to(room).emit("inputLockStatus", locked);
   });
 
   socket.on("clearTexts", (room) => {
@@ -213,7 +202,7 @@ io.on("connection", (socket) => {
       r.playerTexts[name] = "";
     });
     updatePlayers(room);
-    socket.to(room).emit("clearTexts");
+    io.to(room).emit("clearTexts");
   });
   socket.on("textUpdate", ({ room, name, text }) => {
     const r = rooms[room];
@@ -226,33 +215,21 @@ io.on("connection", (socket) => {
 function updatePlayers(room) {
   const r = rooms[room];
   if (!r) return;
-  socket.to(room).emit("playerUpdate", {
+  io.to(room).emit("playerUpdate", {
     players: r.players,
     showPoints: r.showPoints,
     buzzOrder: r.buzzOrder,
     texts: r.playerTexts || {}
-  
-    socket.to(room).emit("timerStart", { duration, label, disableSound });
-  });
-
-    socket.to(room).emit("timerPause");
-  });
-
-    socket.to(room).emit("timerReset");
-  });
-
   socket.on("startTimer", ({ room, duration, label, disableSound }) => {
     io.to(room).emit("timerStart", { duration, label, disableSound });
   });
-
   socket.on("pauseTimer", (room) => {
     io.to(room).emit("timerPause");
   });
-
   socket.on("resetTimer", (room) => {
     io.to(room).emit("timerReset");
   });
-});
+  });
 }
 
 server.listen(3000);
