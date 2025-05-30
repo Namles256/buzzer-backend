@@ -15,7 +15,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.4.2)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.4.1)");
 });
 
 io.on("connection", (socket) => {
@@ -197,14 +197,21 @@ io.on("connection", (socket) => {
   });
 });
 
-
+function updatePlayers(room) {
+  const r = rooms[room];
+  if (!r) return;
+  io.to(room).emit("playerUpdate", {
+    players: r.players,
+    showPoints: r.showPoints,
+    buzzOrder: r.buzzOrder,
+    texts: r.playerTexts || {}
+  
   socket.on("resetRoom", (room) => {
     const r = rooms[room];
     if (!r) return;
-    io.to(room).emit("roomReset");  // Client zurücksetzen
-    delete rooms[room];             // Raum entfernen
+    io.to(room).emit("roomReset");
+    delete rooms[room];
   });
-
 
   socket.on("setPoints", ({ room, name, points }) => {
     const r = rooms[room];
@@ -214,16 +221,7 @@ io.on("connection", (socket) => {
     updatePlayers(room);
   });
 
-
-function updatePlayers(room) {
-  const r = rooms[room];
-  if (!r) return;
-  io.to(room).emit("playerUpdate", {
-    players: r.players,
-    showPoints: r.showPoints,
-    buzzOrder: r.buzzOrder,
-    texts: r.playerTexts || {}
-  });
+});
 }
 
 server.listen(3000);
