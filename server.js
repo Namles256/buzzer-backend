@@ -59,6 +59,15 @@ io.on("connection", (socket) => {
     }
 
     updatePlayers(room);
+  socket.on("startTimer", ({ room, duration, label, disableSound }) => {
+    io.to(room).emit("timerStart", { duration, label, disableSound });
+  });
+  socket.on("pauseTimer", (room) => {
+    io.to(room).emit("timerPause");
+  });
+  socket.on("resetTimer", (room) => {
+    io.to(room).emit("timerReset");
+  });
   });
 
   socket.on("settings", ({ room, showPoints, pointsRight, pointsWrong, pointsOthers, equalMode, showBuzzedPlayerToAll }) => {
@@ -220,8 +229,6 @@ function updatePlayers(room) {
     showPoints: r.showPoints,
     buzzOrder: r.buzzOrder,
     texts: r.playerTexts || {}
-  socket.on("startTimer", ({ room, duration, label, disableSound }) => {
-    io.to(room).emit("timerStart", { duration, label, disableSound });
   });
   socket.on("pauseTimer", (room) => {
     io.to(room).emit("timerPause");
