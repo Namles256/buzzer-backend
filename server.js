@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.5.2)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.5.3)");
 });
 
 io.on("connection", (socket) => {
@@ -59,15 +59,6 @@ io.on("connection", (socket) => {
     }
 
     updatePlayers(room);
-  socket.on("startTimer", ({ room, duration, label, disableSound }) => {
-    io.to(room).emit("timerStart", { duration, label, disableSound });
-  });
-  socket.on("pauseTimer", (room) => {
-    io.to(room).emit("timerPause");
-  });
-  socket.on("resetTimer", (room) => {
-    io.to(room).emit("timerReset");
-  });
   });
 
   socket.on("settings", ({ room, showPoints, pointsRight, pointsWrong, pointsOthers, equalMode, showBuzzedPlayerToAll }) => {
@@ -213,11 +204,25 @@ io.on("connection", (socket) => {
     updatePlayers(room);
     io.to(room).emit("clearTexts");
   });
+
   socket.on("textUpdate", ({ room, name, text }) => {
     const r = rooms[room];
     if (!r) return;
     r.playerTexts[name] = text;
     updatePlayers(room);
+  });
+
+  // TIMER-FUNKTION
+  socket.on("startTimer", ({ room, duration, label, disableSound }) => {
+    io.to(room).emit("timerStart", { duration, label, disableSound });
+  });
+
+  socket.on("pauseTimer", ({ room }) => {
+    io.to(room).emit("timerPause");
+  });
+
+  socket.on("resetTimer", ({ room }) => {
+    io.to(room).emit("timerReset");
   });
 });
 
@@ -229,13 +234,6 @@ function updatePlayers(room) {
     showPoints: r.showPoints,
     buzzOrder: r.buzzOrder,
     texts: r.playerTexts || {}
-  });
-  socket.on("pauseTimer", (room) => {
-    io.to(room).emit("timerPause");
-  });
-  socket.on("resetTimer", (room) => {
-    io.to(room).emit("timerReset");
-  });
   });
 }
 
