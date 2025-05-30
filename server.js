@@ -1,3 +1,22 @@
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+const rooms = {};
+
+app.get("/", (req, res) => {
+  res.send("✅ Buzzer-Backend läuft (v0.4.4.5)");
+});
+
 io.on("connection", (socket) => {
   socket.on("join", ({ name, room, isHost }) => {
     socket.join(room);
@@ -43,13 +62,14 @@ io.on("connection", (socket) => {
   });
 
   socket.on("settings", ({ room, showPoints, pointsRight, pointsWrong, pointsOthers, equalMode, showBuzzedPlayerToAll }) => {
-    if (!rooms[room]) return;
-    if (showPoints !== undefined) rooms[room].showPoints = showPoints;
-    if (pointsRight !== undefined) rooms[room].pointsRight = pointsRight;
-    if (pointsWrong !== undefined) rooms[room].pointsWrong = pointsWrong;
-    if (pointsOthers !== undefined) rooms[room].pointsOthers = pointsOthers;
-    if (equalMode !== undefined) rooms[room].equalMode = equalMode;
-    if (showBuzzedPlayerToAll !== undefined) rooms[room].showBuzzedPlayerToAll = showBuzzedPlayerToAll;
+    const r = rooms[room];
+    if (!r) return;
+    if (showPoints !== undefined) r.showPoints = showPoints;
+    if (pointsRight !== undefined) r.pointsRight = pointsRight;
+    if (pointsWrong !== undefined) r.pointsWrong = pointsWrong;
+    if (pointsOthers !== undefined) r.pointsOthers = pointsOthers;
+    if (equalMode !== undefined) r.equalMode = equalMode;
+    if (showBuzzedPlayerToAll !== undefined) r.showBuzzedPlayerToAll = showBuzzedPlayerToAll;
     updatePlayers(room);
   });
 
@@ -64,10 +84,11 @@ io.on("connection", (socket) => {
     io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
   });
 
-  socket.on("textUpdate", ({ room, name, text }) => {
+  socket.on("setPoints", ({ room, name, points }) => {
     const r = rooms[room];
-    if (!r || !(name in r.players)) return;
-    r.playerTexts[name] = text;
+    if (!r) return;
+    if (!(name in r.players)) return;
+    r.players[name] = points;
     updatePlayers(room);
   });
 
@@ -149,42 +170,12 @@ io.on("connection", (socket) => {
     io.to(room).emit("resetBuzz");
   });
 
-  socket.on("lockTexts", ({ room, locked }) => {
-    const r = rooms[room];
-    if (!r) return;
-    r.inputLocked = locked;
-    io.to(room).emit("inputLockStatus", locked);
-  });
-
-  
   socket.on("resetRoom", (room) => {
     const r = rooms[room];
     if (!r) return;
     io.to(room).emit("roomReset");
     delete rooms[room];
   });
-
-  socket.on("setPoints", ({ room, name, points }) => {
-    const r = rooms[room];
-    if (!r) return;
-    if (!(name in r.players)) return;
-    r.players[name] = points;
-    updatePlayers(room);
-  });
-
-
-  
-  socket.on("clearTexts", (room) => {
-const r = rooms[room];
-    if (!r) return;
-    Object.keys(r.playerTexts).forEach(name => {
-      r.playerTexts[name] = "";
-    });
-updatePlayers(room);
-    updatePlayers(room);
-    io.to(room).emit("clearTexts");
-  });
-
 
   socket.on("resetAllPoints", (room) => {
     const r = rooms[room];
@@ -196,31 +187,22 @@ updatePlayers(room);
     io.to(room).emit("scoreUpdateEffects", Object.keys(r.players).map(name => ({ name, delta: 0 })));
   });
 
+  socket.on("lockTexts", ({ room, locked }) => {
+    const r = rooms[room];
+    if (!r) return;
+    r.inputLocked = locked;
+    io.to(room).emit("inputLockStatus", locked);
+  });
 
+  socket.on("clearTexts", (room) => {
+    const r = rooms[room];
+    if (!r) return;
+    Object.keys(r.playerTexts).forEach(name => {
+      r.playerTexts[name] = "";
+    });
     updatePlayers(room);
     io.to(room).emit("clearTexts");
   });
-
-
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
-
-const rooms = {};
-
-app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.4.5)");
-});
-
 });
 
 function updatePlayers(room) {
@@ -232,3 +214,6 @@ function updatePlayers(room) {
     buzzOrder: r.buzzOrder,
     texts: r.playerTexts || {}
   });
+}
+
+server.listen(3000);
