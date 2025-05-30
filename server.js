@@ -1,23 +1,3 @@
-
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
-
-const rooms = {};
-
-app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.4.5)");
-});
-
 io.on("connection", (socket) => {
   socket.on("join", ({ name, room, isHost }) => {
     socket.join(room);
@@ -220,6 +200,27 @@ updatePlayers(room);
     updatePlayers(room);
     io.to(room).emit("clearTexts");
   });
+
+
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+const rooms = {};
+
+app.get("/", (req, res) => {
+  res.send("✅ Buzzer-Backend läuft (v0.4.4.5)");
+});
+
 });
 
 function updatePlayers(room) {
