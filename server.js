@@ -1,3 +1,4 @@
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -14,7 +15,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.2.9)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.3.0)");
 });
 
 io.on("connection", (socket) => {
@@ -133,6 +134,7 @@ io.on("connection", (socket) => {
         r.players[name] += r.pointsRight;
         updates.push({ name, delta: r.pointsRight });
       }
+      io.to(room).emit("playAnswerSound", { type: "correct" });
     } else if (type === "wrong") {
       if (r.players[name] !== undefined) {
         r.players[name] += r.pointsWrong;
@@ -144,6 +146,7 @@ io.on("connection", (socket) => {
           updates.push({ name: p, delta: r.pointsOthers });
         }
       });
+      io.to(room).emit("playAnswerSound", { type: "wrong" });
     }
 
     r.buzzBlocked = false;
