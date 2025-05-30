@@ -239,3 +239,6 @@ function updatePlayers(room) {
 }
 
 server.listen(3000);
+});
+
+server.listen(3000);
