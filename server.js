@@ -118,6 +118,7 @@ io.on("connection", (socket) => {
       if (r.buzzedPlayers.has(name)) return;
       r.buzzedPlayers.add(name);
       r.buzzOrder.push(name);
+      updatePlayers(room);
       io.to(r.host).emit("buzzOrderUpdate", r.buzzOrder);
       io.to(room).emit("buzz", { name });
       io.to(socket.id).emit("buzzBlocked");
