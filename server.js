@@ -204,6 +204,12 @@ io.on("connection", (socket) => {
     updatePlayers(room);
     io.to(room).emit("clearTexts");
   });
+  socket.on("textUpdate", ({ room, name, text }) => {
+    const r = rooms[room];
+    if (!r) return;
+    r.playerTexts[name] = text;
+    updatePlayers(room);
+  });
 });
 
 function updatePlayers(room) {
@@ -214,15 +220,7 @@ function updatePlayers(room) {
     showPoints: r.showPoints,
     buzzOrder: r.buzzOrder,
     texts: r.playerTexts || {}
-  
-  socket.on("textUpdate", ({ room, name, text }) => {
-    const r = rooms[room];
-    if (!r) return;
-    r.playerTexts[name] = text;
-    updatePlayers(room);
   });
-
-});
 }
 
 server.listen(3000);
