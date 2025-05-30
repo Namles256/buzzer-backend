@@ -14,7 +14,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.5.4)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.5.2)");
 });
 
 io.on("connection", (socket) => {
@@ -84,13 +84,6 @@ io.on("connection", (socket) => {
     io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
   });
 
-  socket.on("setPoints", ({ room, name, points }) => {
-    const r = rooms[room];
-    if (!r) return;
-    if (!(name in r.players)) return;
-    r.players[name] = points;
-    updatePlayers(room);
-  });
 
   socket.on("buzzModeChanged", ({ room, mode }) => {
     if (rooms[room]) {
@@ -204,25 +197,11 @@ io.on("connection", (socket) => {
     updatePlayers(room);
     io.to(room).emit("clearTexts");
   });
-
   socket.on("textUpdate", ({ room, name, text }) => {
     const r = rooms[room];
     if (!r) return;
     r.playerTexts[name] = text;
     updatePlayers(room);
-  });
-
-  // TIMER-FUNKTION
-  socket.on("startTimer", ({ room, duration, label, disableSound }) => {
-    io.to(room).emit("timerStart", { duration, label, disableSound });
-  });
-
-  socket.on("pauseTimer", ({ room }) => {
-    io.to(room).emit("timerPause");
-  });
-
-  socket.on("resetTimer", ({ room }) => {
-    io.to(room).emit("timerReset");
   });
 });
 
