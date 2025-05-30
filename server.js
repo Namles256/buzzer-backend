@@ -193,12 +193,18 @@ io.on("connection", (socket) => {
   });
 
 
+  
   socket.on("clearTexts", (room) => {
-    const r = rooms[room];
+const r = rooms[room];
     if (!r) return;
     Object.keys(r.playerTexts).forEach(name => {
       r.playerTexts[name] = "";
     });
+updatePlayers(room);
+    updatePlayers(room);
+    io.to(room).emit("clearTexts");
+  });
+
 
   socket.on("resetAllPoints", (room) => {
     const r = rooms[room];
@@ -209,8 +215,7 @@ io.on("connection", (socket) => {
     updatePlayers(room);
     io.to(room).emit("scoreUpdateEffects", Object.keys(r.players).map(name => ({ name, delta: 0 })));
   });
-  updatePlayers(room);
-});
+
 
     updatePlayers(room);
     io.to(room).emit("clearTexts");
