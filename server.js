@@ -14,10 +14,8 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.5.6)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.5.2)");
 });
-
-const VERSION = "0.4.5.6";
 
 io.on("connection", (socket) => {
   socket.on("join", ({ name, room, isHost }) => {
@@ -85,6 +83,7 @@ io.on("connection", (socket) => {
     updatePlayers(room);
     io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
   });
+
 
   socket.on("buzzModeChanged", ({ room, mode }) => {
     if (rooms[room]) {
@@ -198,7 +197,6 @@ io.on("connection", (socket) => {
     updatePlayers(room);
     io.to(room).emit("clearTexts");
   });
-
   socket.on("textUpdate", ({ room, name, text }) => {
     const r = rooms[room];
     if (!r) return;
@@ -219,6 +217,3 @@ function updatePlayers(room) {
 }
 
 server.listen(3000);
-
-// Debug: Datei korrekt geladen bis zum Schluss.
-console.log("Server.js geladen bis zum ENDE!");
