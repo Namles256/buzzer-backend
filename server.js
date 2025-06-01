@@ -194,4 +194,7 @@ const io = new Server(server, {
                                                                                     server.listen(3000);
 
 // Debug: Datei korrekt geladen bis zum Schluss.
+console.log("Server.js geladen bis zum ENDE!");}
+
+// Debug: Datei korrekt geladen bis zum Schluss.
 console.log("Server.js geladen bis zum ENDE!");
