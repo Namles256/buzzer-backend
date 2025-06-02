@@ -1,4 +1,4 @@
-// server.js – v0.4.6.3 (Antwort-Auswahl Feature, Buttons bis 12, keine Platzhalter)
+// server.js – v0.4.6.5 (Antwort-Auswahl Feature, Buttons bis 12, keine Platzhalter)
 
 const express = require("express");
 const http = require("http");
@@ -16,7 +16,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.6.3)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.6.5)");
 });
 
 io.on("connection", (socket) => {
