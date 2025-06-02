@@ -1,3 +1,4 @@
+// server.js – v0.4.5.6 (mit LoginStatus, Zeilenumbruch-Support)
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -14,7 +15,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.5.4)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.5.6)");
 });
 
 io.on("connection", (socket) => {
@@ -38,7 +39,8 @@ io.on("connection", (socket) => {
         buzzedPlayers: new Set(),
         showBuzzedPlayerToAll: true,
         inputLocked: false,
-        buzzedNamePersistent: null
+        buzzedNamePersistent: null,
+        loginStatus: {} // Eingeloggt-Status
       };
     }
 
@@ -49,6 +51,8 @@ io.on("connection", (socket) => {
       if (rooms[room].buzzMode === "first" && rooms[room].buzzedNamePersistent) {
         socket.emit("buzz", { name: rooms[room].buzzedNamePersistent });
       }
+      // Login-Status an neuen Host senden
+      socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
     } else {
       if (!rooms[room].players[name]) {
         rooms[room].players[name] = 0;
@@ -56,6 +60,8 @@ io.on("connection", (socket) => {
       }
       socket.emit("buzzModeSet", rooms[room].buzzMode);
       socket.emit("inputLockStatus", rooms[room].inputLocked);
+      // Login-Status an neuen Teilnehmer senden
+      socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
     }
 
     updatePlayers(room);
@@ -83,7 +89,6 @@ io.on("connection", (socket) => {
     updatePlayers(room);
     io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
   });
-
 
   socket.on("buzzModeChanged", ({ room, mode }) => {
     if (rooms[room]) {
@@ -197,11 +202,42 @@ io.on("connection", (socket) => {
     updatePlayers(room);
     io.to(room).emit("clearTexts");
   });
+
   socket.on("textUpdate", ({ room, name, text }) => {
     const r = rooms[room];
     if (!r) return;
+    // Zeilenumbruch wird jetzt im Text gespeichert und synchronisiert!
     r.playerTexts[name] = text;
     updatePlayers(room);
+  });
+
+  // ========== Login/Eingeloggt-Status (NEU) ==========
+  socket.on("loginStatus", ({ room, name, loggedIn }) => {
+    const r = rooms[room];
+    if (!r) return;
+    if (!r.loginStatus) r.loginStatus = {};
+    r.loginStatus[name] = !!loggedIn;
+    io.to(room).emit("loginStatusUpdate", r.loginStatus);
+  });
+
+  socket.on("unlockText", ({ room, targetName }) => {
+    const r = rooms[room];
+    if (!r) return;
+    if (!r.loginStatus) r.loginStatus = {};
+    r.loginStatus[targetName] = false;
+    io.to(room).emit("unlockText", targetName);
+    io.to(room).emit("loginStatusUpdate", r.loginStatus);
+  });
+
+  socket.on("unlockAllTexts", ({ room }) => {
+    const r = rooms[room];
+    if (!r) return;
+    if (!r.loginStatus) r.loginStatus = {};
+    Object.keys(r.loginStatus).forEach(name => {
+      r.loginStatus[name] = false;
+    });
+    io.to(room).emit("unlockAllTexts");
+    io.to(room).emit("loginStatusUpdate", r.loginStatus);
   });
 });
 
