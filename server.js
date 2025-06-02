@@ -1,5 +1,4 @@
-// server.js – v0.4.6.5 (Antwort-Auswahl Feature, Buttons bis 12, keine Platzhalter)
-
+// server.js – v0.4.5.9 (Antwort-Auswahl Feature & Soundfix)
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -16,7 +15,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.6.5)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.5.9)");
 });
 
 io.on("connection", (socket) => {
@@ -45,10 +44,11 @@ io.on("connection", (socket) => {
         showAnswerOptions: false,
         answerOptionCount: 4,
         answerOptionMulti: false,
-        playerAnswers: {}
+        playerAnswers: {} // name: [0, 1] etc.
       };
     }
 
+    // Host bekommt Settings
     if (isHost) {
       rooms[room].host = socket.id;
       socket.emit("buzzModeSet", rooms[room].buzzMode);
@@ -58,6 +58,7 @@ io.on("connection", (socket) => {
       if (rooms[room].buzzMode === "first" && rooms[room].buzzedNamePersistent) {
         socket.emit("buzz", { name: rooms[room].buzzedNamePersistent });
       }
+      // Neue Host-Settings für Antwort-Optionen:
       socket.emit("settings", {
         room,
         showAnswerOptions: rooms[room].showAnswerOptions,
@@ -73,6 +74,7 @@ io.on("connection", (socket) => {
       socket.emit("inputLockStatus", rooms[room].inputLocked);
       socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
       socket.emit("answerSelectionUpdate", rooms[room].playerAnswers || {});
+      // Einstellungen für Teilnehmer:
       socket.emit("settings", {
         room,
         showAnswerOptions: rooms[room].showAnswerOptions,
@@ -229,20 +231,19 @@ io.on("connection", (socket) => {
     io.to(room).emit("clearTexts");
   });
 
-socket.on("textUpdate", ({ room, name, text }) => {
-  const r = rooms[room];
-  if (!r) return;
-  // Server: Nur Broadcast wenn sich der Text wirklich geändert hat!
-  if (r.playerTexts[name] !== text) {
+  socket.on("textUpdate", ({ room, name, text }) => {
+    const r = rooms[room];
+    if (!r) return;
     r.playerTexts[name] = text;
     updatePlayers(room);
-  }
-});
+  });
 
+  // === Antwort-Auswahl Feature ===
   socket.on("answerSelection", ({ room, name, sel }) => {
     const r = rooms[room];
     if (!r) return;
     if (!r.playerAnswers) r.playerAnswers = {};
+    // Nur solange nicht eingeloggt!
     if (!r.loginStatus || !r.loginStatus[name]) {
       r.playerAnswers[name] = Array.isArray(sel) ? sel.filter(x => Number.isInteger(x)) : [];
       io.to(room).emit("answerSelectionUpdate", r.playerAnswers);
@@ -262,6 +263,7 @@ socket.on("textUpdate", ({ room, name, text }) => {
     if (!r) return;
     if (!r.loginStatus) r.loginStatus = {};
     r.loginStatus[targetName] = false;
+    // Antworten auch zurücksetzen:
     if (r.playerAnswers) r.playerAnswers[targetName] = [];
     io.to(room).emit("unlockText", targetName);
     io.to(room).emit("loginStatusUpdate", r.loginStatus);
@@ -274,6 +276,7 @@ socket.on("textUpdate", ({ room, name, text }) => {
     if (!r.loginStatus) r.loginStatus = {};
     Object.keys(r.loginStatus).forEach(name => {
       r.loginStatus[name] = false;
+      // Antworten zurücksetzen:
       if (r.playerAnswers) r.playerAnswers[name] = [];
     });
     io.to(room).emit("unlockAllTexts");
