@@ -1,4 +1,4 @@
-// server.js – v0.4.6.1
+// server.js – v0.4.6.2
 
 const express = require("express");
 const http = require("http");
@@ -16,7 +16,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.6.1)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.6.2)");
 });
 
 function getDefaultTimerOptions() {
