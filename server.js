@@ -1,4 +1,4 @@
-// server.js – v0.4.5.8 (wie 0.4.5.7, keine Logikänderung nötig)
+// server.js – v0.4.5.9 (Antwort-Auswahl Feature & Soundfix)
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -15,7 +15,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.5.8)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.5.9)");
 });
 
 io.on("connection", (socket) => {
@@ -40,18 +40,31 @@ io.on("connection", (socket) => {
         showBuzzedPlayerToAll: true,
         inputLocked: false,
         buzzedNamePersistent: null,
-        loginStatus: {}
+        loginStatus: {},
+        showAnswerOptions: false,
+        answerOptionCount: 4,
+        answerOptionMulti: false,
+        playerAnswers: {} // name: [0, 1] etc.
       };
     }
 
+    // Host bekommt Settings
     if (isHost) {
       rooms[room].host = socket.id;
       socket.emit("buzzModeSet", rooms[room].buzzMode);
       socket.emit("inputLockStatus", rooms[room].inputLocked);
+      socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
+      socket.emit("answerSelectionUpdate", rooms[room].playerAnswers || {});
       if (rooms[room].buzzMode === "first" && rooms[room].buzzedNamePersistent) {
         socket.emit("buzz", { name: rooms[room].buzzedNamePersistent });
       }
-      socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
+      // Neue Host-Settings für Antwort-Optionen:
+      socket.emit("settings", {
+        room,
+        showAnswerOptions: rooms[room].showAnswerOptions,
+        answerOptionCount: rooms[room].answerOptionCount,
+        answerOptionMulti: rooms[room].answerOptionMulti
+      });
     } else {
       if (!rooms[room].players[name]) {
         rooms[room].players[name] = 0;
@@ -60,12 +73,20 @@ io.on("connection", (socket) => {
       socket.emit("buzzModeSet", rooms[room].buzzMode);
       socket.emit("inputLockStatus", rooms[room].inputLocked);
       socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
+      socket.emit("answerSelectionUpdate", rooms[room].playerAnswers || {});
+      // Einstellungen für Teilnehmer:
+      socket.emit("settings", {
+        room,
+        showAnswerOptions: rooms[room].showAnswerOptions,
+        answerOptionCount: rooms[room].answerOptionCount,
+        answerOptionMulti: rooms[room].answerOptionMulti
+      });
     }
 
     updatePlayers(room);
   });
 
-  socket.on("settings", ({ room, showPoints, pointsRight, pointsWrong, pointsOthers, equalMode, showBuzzedPlayerToAll }) => {
+  socket.on("settings", ({ room, showPoints, pointsRight, pointsWrong, pointsOthers, equalMode, showBuzzedPlayerToAll, showAnswerOptions, answerOptionCount, answerOptionMulti }) => {
     const r = rooms[room];
     if (!r) return;
     if (showPoints !== undefined) r.showPoints = showPoints;
@@ -74,7 +95,16 @@ io.on("connection", (socket) => {
     if (pointsOthers !== undefined) r.pointsOthers = pointsOthers;
     if (equalMode !== undefined) r.equalMode = equalMode;
     if (showBuzzedPlayerToAll !== undefined) r.showBuzzedPlayerToAll = showBuzzedPlayerToAll;
+    if (showAnswerOptions !== undefined) r.showAnswerOptions = showAnswerOptions;
+    if (answerOptionCount !== undefined) r.answerOptionCount = answerOptionCount;
+    if (answerOptionMulti !== undefined) r.answerOptionMulti = answerOptionMulti;
     updatePlayers(room);
+    io.to(room).emit("settings", {
+      room,
+      showAnswerOptions: r.showAnswerOptions,
+      answerOptionCount: r.answerOptionCount,
+      answerOptionMulti: r.answerOptionMulti
+    });
   });
 
   socket.on("adjustPoints", ({ room, name, delta }) => {
@@ -208,6 +238,18 @@ io.on("connection", (socket) => {
     updatePlayers(room);
   });
 
+  // === Antwort-Auswahl Feature ===
+  socket.on("answerSelection", ({ room, name, sel }) => {
+    const r = rooms[room];
+    if (!r) return;
+    if (!r.playerAnswers) r.playerAnswers = {};
+    // Nur solange nicht eingeloggt!
+    if (!r.loginStatus || !r.loginStatus[name]) {
+      r.playerAnswers[name] = Array.isArray(sel) ? sel.filter(x => Number.isInteger(x)) : [];
+      io.to(room).emit("answerSelectionUpdate", r.playerAnswers);
+    }
+  });
+
   socket.on("loginStatus", ({ room, name, loggedIn }) => {
     const r = rooms[room];
     if (!r) return;
@@ -221,8 +263,11 @@ io.on("connection", (socket) => {
     if (!r) return;
     if (!r.loginStatus) r.loginStatus = {};
     r.loginStatus[targetName] = false;
+    // Antworten auch zurücksetzen:
+    if (r.playerAnswers) r.playerAnswers[targetName] = [];
     io.to(room).emit("unlockText", targetName);
     io.to(room).emit("loginStatusUpdate", r.loginStatus);
+    io.to(room).emit("answerSelectionUpdate", r.playerAnswers);
   });
 
   socket.on("unlockAllTexts", ({ room }) => {
@@ -231,9 +276,12 @@ io.on("connection", (socket) => {
     if (!r.loginStatus) r.loginStatus = {};
     Object.keys(r.loginStatus).forEach(name => {
       r.loginStatus[name] = false;
+      // Antworten zurücksetzen:
+      if (r.playerAnswers) r.playerAnswers[name] = [];
     });
     io.to(room).emit("unlockAllTexts");
     io.to(room).emit("loginStatusUpdate", r.loginStatus);
+    io.to(room).emit("answerSelectionUpdate", r.playerAnswers);
   });
 });
 
