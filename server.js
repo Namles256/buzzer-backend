@@ -1,4 +1,4 @@
-// server.js – v0.4.5.6 (mit LoginStatus, Zeilenumbruch-Support)
+// server.js – v0.4.5.7 (Buzz-Highlight-Fix, LoginStatus, Sperr-Lämpchen-Gelb)
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -15,7 +15,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.5.6)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.5.7)");
 });
 
 io.on("connection", (socket) => {
@@ -40,7 +40,7 @@ io.on("connection", (socket) => {
         showBuzzedPlayerToAll: true,
         inputLocked: false,
         buzzedNamePersistent: null,
-        loginStatus: {} // Eingeloggt-Status
+        loginStatus: {}
       };
     }
 
@@ -51,7 +51,6 @@ io.on("connection", (socket) => {
       if (rooms[room].buzzMode === "first" && rooms[room].buzzedNamePersistent) {
         socket.emit("buzz", { name: rooms[room].buzzedNamePersistent });
       }
-      // Login-Status an neuen Host senden
       socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
     } else {
       if (!rooms[room].players[name]) {
@@ -60,7 +59,6 @@ io.on("connection", (socket) => {
       }
       socket.emit("buzzModeSet", rooms[room].buzzMode);
       socket.emit("inputLockStatus", rooms[room].inputLocked);
-      // Login-Status an neuen Teilnehmer senden
       socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
     }
 
@@ -206,12 +204,10 @@ io.on("connection", (socket) => {
   socket.on("textUpdate", ({ room, name, text }) => {
     const r = rooms[room];
     if (!r) return;
-    // Zeilenumbruch wird jetzt im Text gespeichert und synchronisiert!
     r.playerTexts[name] = text;
     updatePlayers(room);
   });
 
-  // ========== Login/Eingeloggt-Status (NEU) ==========
   socket.on("loginStatus", ({ room, name, loggedIn }) => {
     const r = rooms[room];
     if (!r) return;
