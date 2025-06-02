@@ -1,4 +1,4 @@
-// server.js – v0.4.6.0 (Antwort-Auswahl Feature, Buttons bis 12, keine Platzhalter)
+// server.js – v0.4.6.1
 
 const express = require("express");
 const http = require("http");
@@ -16,8 +16,58 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.6.0)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.6.1)");
 });
+
+function getDefaultTimerOptions() {
+  return {
+    lockText: false,
+    autoLog: false,
+    lockBuzzer: false,
+    showOverlay: true
+  };
+}
+
+function timerSync(room) {
+  const r = rooms[room];
+  if (!r) return;
+  io.to(room).emit("timerSync", {
+    active: r.timerActive,
+    left: r.timerLeft,
+    duration: r.timerDuration,
+    options: r.timerOptions || getDefaultTimerOptions()
+  });
+}
+
+function stopTimer(room) {
+  const r = rooms[room];
+  if (!r) return;
+  if (r.timerInterval) clearInterval(r.timerInterval);
+  r.timerInterval = null;
+  r.timerActive = false;
+  timerSync(room);
+}
+
+function endTimer(room) {
+  const r = rooms[room];
+  if (!r) return;
+  stopTimer(room);
+  r.timerLeft = 0;
+  io.to(room).emit("timerEnd");
+  if (r.timerOptions && r.timerOptions.lockText) {
+    io.to(room).emit("inputLockStatus", true);
+  }
+  // Automatisch einloggen:
+  if (r.timerOptions && r.timerOptions.autoLog && r.loginStatus) {
+    Object.entries(r.loginStatus).forEach(([name, logged]) => {
+      if (!logged) {
+        r.loginStatus[name] = true;
+      }
+    });
+    io.to(room).emit("loginStatusUpdate", r.loginStatus);
+  }
+  timerSync(room);
+}
 
 io.on("connection", (socket) => {
   socket.on("join", ({ name, room, isHost }) => {
@@ -45,7 +95,13 @@ io.on("connection", (socket) => {
         showAnswerOptions: false,
         answerOptionCount: 4,
         answerOptionMulti: false,
-        playerAnswers: {}
+        playerAnswers: {},
+        // Timer
+        timerActive: false,
+        timerLeft: 0,
+        timerDuration: 30,
+        timerOptions: getDefaultTimerOptions(),
+        timerInterval: null
       };
     }
 
@@ -55,6 +111,7 @@ io.on("connection", (socket) => {
       socket.emit("inputLockStatus", rooms[room].inputLocked);
       socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
       socket.emit("answerSelectionUpdate", rooms[room].playerAnswers || {});
+      timerSync(room);
       if (rooms[room].buzzMode === "first" && rooms[room].buzzedNamePersistent) {
         socket.emit("buzz", { name: rooms[room].buzzedNamePersistent });
       }
@@ -73,6 +130,7 @@ io.on("connection", (socket) => {
       socket.emit("inputLockStatus", rooms[room].inputLocked);
       socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
       socket.emit("answerSelectionUpdate", rooms[room].playerAnswers || {});
+      timerSync(room);
       socket.emit("settings", {
         room,
         showAnswerOptions: rooms[room].showAnswerOptions,
@@ -80,7 +138,6 @@ io.on("connection", (socket) => {
         answerOptionMulti: rooms[room].answerOptionMulti
       });
     }
-
     updatePlayers(room);
   });
 
@@ -127,7 +184,6 @@ io.on("connection", (socket) => {
   socket.on("buzz", ({ room, name }) => {
     const r = rooms[room];
     if (!r || r.buzzBlocked) return;
-
     if (r.buzzMode === "first") {
       r.buzzBlocked = true;
       r.buzzedNamePersistent = name;
@@ -137,7 +193,6 @@ io.on("connection", (socket) => {
         io.to(room).emit("buzzNameVisible", name);
       }
     }
-
     if (r.buzzMode === "multi") {
       if (r.buzzedPlayers.has(name)) return;
       r.buzzedPlayers.add(name);
@@ -154,7 +209,6 @@ io.on("connection", (socket) => {
     if (!r) return;
 
     const updates = [];
-
     if (type === "correct") {
       if (r.players[name] !== undefined) {
         r.players[name] += r.pointsRight;
@@ -276,6 +330,58 @@ io.on("connection", (socket) => {
     io.to(room).emit("unlockAllTexts");
     io.to(room).emit("loginStatusUpdate", r.loginStatus);
     io.to(room).emit("answerSelectionUpdate", r.playerAnswers);
+  });
+
+  // ==== TIMER SOCKETS ====
+  socket.on("timerSet", ({ room, duration }) => {
+    const r = rooms[room];
+    if (!r) return;
+    r.timerDuration = Math.max(5, Math.min(3600, parseInt(duration) || 30));
+    r.timerLeft = r.timerDuration;
+    r.timerActive = false;
+    stopTimer(room);
+    timerSync(room);
+  });
+
+  socket.on("timerStart", ({ room }) => {
+    const r = rooms[room];
+    if (!r) return;
+    if (r.timerInterval) clearInterval(r.timerInterval);
+    if (!r.timerLeft || r.timerLeft < 1) r.timerLeft = r.timerDuration || 30;
+    r.timerActive = true;
+    timerSync(room);
+    r.timerInterval = setInterval(() => {
+      if (!r.timerActive) return;
+      if (r.timerLeft > 0) {
+        r.timerLeft -= 1;
+        io.to(room).emit("timerTick", r.timerLeft);
+        if (r.timerLeft <= 0) {
+          endTimer(room);
+        }
+      }
+    }, 1000);
+  });
+
+  socket.on("timerPause", ({ room }) => {
+    const r = rooms[room];
+    if (!r) return;
+    stopTimer(room);
+  });
+
+  socket.on("timerReset", ({ room }) => {
+    const r = rooms[room];
+    if (!r) return;
+    stopTimer(room);
+    r.timerLeft = r.timerDuration;
+    timerSync(room);
+  });
+
+  socket.on("timerOption", ({ room, option, value }) => {
+    const r = rooms[room];
+    if (!r) return;
+    if (!r.timerOptions) r.timerOptions = getDefaultTimerOptions();
+    r.timerOptions[option] = !!value;
+    timerSync(room);
   });
 });
 
