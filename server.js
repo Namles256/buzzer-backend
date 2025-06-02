@@ -229,12 +229,15 @@ io.on("connection", (socket) => {
     io.to(room).emit("clearTexts");
   });
 
-  socket.on("textUpdate", ({ room, name, text }) => {
-    const r = rooms[room];
-    if (!r) return;
+socket.on("textUpdate", ({ room, name, text }) => {
+  const r = rooms[room];
+  if (!r) return;
+  // Server: Nur Broadcast wenn sich der Text wirklich geändert hat!
+  if (r.playerTexts[name] !== text) {
     r.playerTexts[name] = text;
     updatePlayers(room);
-  });
+  }
+});
 
   socket.on("answerSelection", ({ room, name, sel }) => {
     const r = rooms[room];
