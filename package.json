@@ -1,13 +1,12 @@
 {
-  "name": "buzzerraum",
-  "version": "0.4.6.3",
-  "description": "Online Buzzer",
+  "name": "buzzer-v0460",
+  "version": "0.4.6.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.2"
   }
 }
