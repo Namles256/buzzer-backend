@@ -1,293 +1,240 @@
-// server.js – v0.4.6.0 (Antwort-Auswahl Feature, Buttons bis 12, keine Platzhalter)
+// server.js – v0.4.7.0
 
 const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
+const http = require("http").Server(app);
+const io = require("socket.io")(http);
 
-const rooms = {};
+const port = process.env.PORT || 3000;
+app.use(express.static("."));
+
+let rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.6.0)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.7.0)");
 });
 
 io.on("connection", (socket) => {
-  socket.on("join", ({ name, room, isHost }) => {
+  let joinedRoom = "";
+  let playerName = "";
+  let isHost = false;
+
+  socket.on("join", ({ name, room, isHost: host }) => {
+    joinedRoom = room;
+    playerName = name;
+    isHost = !!host;
     socket.join(room);
-    socket.data = { name, room, isHost };
 
-    if (!rooms[room]) {
-      rooms[room] = {
-        players: {},
-        playerTexts: {},
-        host: null,
-        showPoints: true,
-        pointsRight: 100,
-        pointsWrong: -100,
-        pointsOthers: 0,
-        equalMode: true,
-        buzzMode: "first",
-        buzzBlocked: false,
-        buzzOrder: [],
-        buzzedPlayers: new Set(),
-        showBuzzedPlayerToAll: true,
-        inputLocked: false,
-        buzzedNamePersistent: null,
-        loginStatus: {},
-        showAnswerOptions: false,
-        answerOptionCount: 4,
-        answerOptionMulti: false,
-        playerAnswers: {}
-      };
-    }
+    if (!rooms[room]) rooms[room] = {
+      players: {},
+      host: "",
+      showPoints: true,
+      pointsRight: 100,
+      pointsWrong: -100,
+      pointsOthers: 0,
+      equalMode: true,
+      showBuzzedPlayerToAll: true,
+      showAnswerOptions: false,
+      answerOptionCount: 4,
+      answerOptionMulti: false,
+      buzzMode: "first",
+      buzzOrder: [],
+      playerTexts: {},
+      loggedInStatus: {},
+      playerAnswers: {}
+    };
 
-    if (isHost) {
-      rooms[room].host = socket.id;
-      socket.emit("buzzModeSet", rooms[room].buzzMode);
-      socket.emit("inputLockStatus", rooms[room].inputLocked);
-      socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
-      socket.emit("answerSelectionUpdate", rooms[room].playerAnswers || {});
-      if (rooms[room].buzzMode === "first" && rooms[room].buzzedNamePersistent) {
-        socket.emit("buzz", { name: rooms[room].buzzedNamePersistent });
-      }
-      socket.emit("settings", {
-        room,
-        showAnswerOptions: rooms[room].showAnswerOptions,
-        answerOptionCount: rooms[room].answerOptionCount,
-        answerOptionMulti: rooms[room].answerOptionMulti
-      });
-    } else {
-      if (!rooms[room].players[name]) {
-        rooms[room].players[name] = 0;
-        rooms[room].playerTexts[name] = "";
-      }
-      socket.emit("buzzModeSet", rooms[room].buzzMode);
-      socket.emit("inputLockStatus", rooms[room].inputLocked);
-      socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
-      socket.emit("answerSelectionUpdate", rooms[room].playerAnswers || {});
-      socket.emit("settings", {
-        room,
-        showAnswerOptions: rooms[room].showAnswerOptions,
-        answerOptionCount: rooms[room].answerOptionCount,
-        answerOptionMulti: rooms[room].answerOptionMulti
-      });
-    }
+    rooms[room].players[name] = 0;
+    if (isHost) rooms[room].host = name;
 
-    updatePlayers(room);
-  });
-
-  socket.on("settings", ({ room, showPoints, pointsRight, pointsWrong, pointsOthers, equalMode, showBuzzedPlayerToAll, showAnswerOptions, answerOptionCount, answerOptionMulti }) => {
-    const r = rooms[room];
-    if (!r) return;
-    if (showPoints !== undefined) r.showPoints = showPoints;
-    if (pointsRight !== undefined) r.pointsRight = pointsRight;
-    if (pointsWrong !== undefined) r.pointsWrong = pointsWrong;
-    if (pointsOthers !== undefined) r.pointsOthers = pointsOthers;
-    if (equalMode !== undefined) r.equalMode = equalMode;
-    if (showBuzzedPlayerToAll !== undefined) r.showBuzzedPlayerToAll = showBuzzedPlayerToAll;
-    if (showAnswerOptions !== undefined) r.showAnswerOptions = showAnswerOptions;
-    if (answerOptionCount !== undefined) r.answerOptionCount = answerOptionCount;
-    if (answerOptionMulti !== undefined) r.answerOptionMulti = answerOptionMulti;
-    updatePlayers(room);
-    io.to(room).emit("settings", {
-      room,
-      showAnswerOptions: r.showAnswerOptions,
-      answerOptionCount: r.answerOptionCount,
-      answerOptionMulti: r.answerOptionMulti
+    io.to(room).emit("playerUpdate", {
+      players: rooms[room].players,
+      showPoints: rooms[room].showPoints,
+      buzzOrder: rooms[room].buzzOrder,
+      texts: rooms[room].playerTexts
     });
+    io.to(room).emit("loginStatusUpdate", rooms[room].loggedInStatus);
+    io.to(room).emit("answerSelectionUpdate", rooms[room].playerAnswers);
   });
 
-  socket.on("adjustPoints", ({ room, name, delta }) => {
-    const r = rooms[room];
-    if (!r) return;
-    if (!(name in r.players)) {
-      r.players[name] = 0;
-    }
-    r.players[name] += delta;
-    updatePlayers(room);
-    io.to(room).emit("scoreUpdateEffects", [{ name, delta }]);
-  });
-
-  socket.on("buzzModeChanged", ({ room, mode }) => {
-    if (rooms[room]) {
-      rooms[room].buzzMode = mode;
-      rooms[room].buzzedNamePersistent = null;
-      io.to(room).emit("buzzModeSet", mode);
-    }
+  socket.on("settings", (data) => {
+    if (!rooms[data.room]) return;
+    rooms[data.room].showPoints = data.showPoints;
+    rooms[data.room].pointsRight = data.pointsRight;
+    rooms[data.room].pointsWrong = data.pointsWrong;
+    rooms[data.room].pointsOthers = data.pointsOthers;
+    rooms[data.room].equalMode = data.equalMode;
+    rooms[data.room].showBuzzedPlayerToAll = data.showBuzzedPlayerToAll;
+    rooms[data.room].showAnswerOptions = data.showAnswerOptions;
+    rooms[data.room].answerOptionCount = data.answerOptionCount;
+    rooms[data.room].answerOptionMulti = data.answerOptionMulti;
+    io.to(data.room).emit("settings", data);
   });
 
   socket.on("buzz", ({ room, name }) => {
-    const r = rooms[room];
-    if (!r || r.buzzBlocked) return;
+    if (!rooms[room]) return;
+    if (!rooms[room].buzzOrder.includes(name)) rooms[room].buzzOrder.push(name);
+    io.to(room).emit("buzz", { name });
+    io.to(room).emit("playerUpdate", {
+      players: rooms[room].players,
+      showPoints: rooms[room].showPoints,
+      buzzOrder: rooms[room].buzzOrder,
+      texts: rooms[room].playerTexts
+    });
+  });
 
-    if (r.buzzMode === "first") {
-      r.buzzBlocked = true;
-      r.buzzedNamePersistent = name;
-      io.to(room).emit("buzzBlocked");
-      io.to(room).emit("buzz", { name });
-      if (r.showBuzzedPlayerToAll) {
-        io.to(room).emit("buzzNameVisible", name);
-      }
-    }
-
-    if (r.buzzMode === "multi") {
-      if (r.buzzedPlayers.has(name)) return;
-      r.buzzedPlayers.add(name);
-      r.buzzOrder.push(name);
-      updatePlayers(room);
-      io.to(r.host).emit("buzzOrderUpdate", r.buzzOrder);
-      io.to(room).emit("buzz", { name });
-      io.to(socket.id).emit("buzzBlocked");
-    }
+  socket.on("buzzModeChanged", ({ room, mode }) => {
+    if (!rooms[room]) return;
+    rooms[room].buzzMode = mode;
+    io.to(room).emit("buzzModeSet", mode);
+    rooms[room].buzzOrder = [];
+    io.to(room).emit("playerUpdate", {
+      players: rooms[room].players,
+      showPoints: rooms[room].showPoints,
+      buzzOrder: rooms[room].buzzOrder,
+      texts: rooms[room].playerTexts
+    });
   });
 
   socket.on("result", ({ room, name, type }) => {
-    const r = rooms[room];
-    if (!r) return;
-
-    const updates = [];
-
-    if (type === "correct") {
-      if (r.players[name] !== undefined) {
-        r.players[name] += r.pointsRight;
-        updates.push({ name, delta: r.pointsRight });
-      }
-      io.to(room).emit("playAnswerSound", { type: "correct" });
-    } else if (type === "wrong") {
-      if (r.players[name] !== undefined) {
-        r.players[name] += r.pointsWrong;
-        updates.push({ name, delta: r.pointsWrong });
-      }
-      Object.keys(r.players).forEach((p) => {
-        if (p !== name) {
-          r.players[p] += r.pointsOthers;
-          updates.push({ name: p, delta: r.pointsOthers });
-        }
+    if (!rooms[room] || !rooms[room].players[name]) return;
+    let pointsDelta = 0;
+    if (type === "correct") pointsDelta = rooms[room].pointsRight;
+    if (type === "wrong") pointsDelta = rooms[room].equalMode ? rooms[room].pointsWrong : rooms[room].pointsWrong;
+    rooms[room].players[name] += pointsDelta;
+    if (type === "wrong" && !rooms[room].equalMode) {
+      Object.keys(rooms[room].players).forEach(n => {
+        if (n !== name) rooms[room].players[n] += rooms[room].pointsOthers;
       });
-      io.to(room).emit("playAnswerSound", { type: "wrong" });
     }
-
-    r.buzzBlocked = false;
-    r.buzzOrder = [];
-    r.buzzedPlayers.clear();
-    r.buzzedNamePersistent = null;
-    updatePlayers(room);
-    io.to(room).emit("resetBuzz");
-    io.to(room).emit("scoreUpdateEffects", updates);
+    rooms[room].buzzOrder = [];
+    io.to(room).emit("playerUpdate", {
+      players: rooms[room].players,
+      showPoints: rooms[room].showPoints,
+      buzzOrder: rooms[room].buzzOrder,
+      texts: rooms[room].playerTexts
+    });
   });
 
   socket.on("resetBuzz", (room) => {
-    const r = rooms[room];
-    if (!r) return;
-    r.buzzBlocked = false;
-    r.buzzOrder = [];
-    r.buzzedPlayers.clear();
-    r.buzzedNamePersistent = null;
-    updatePlayers(room);
+    if (!rooms[room]) return;
+    rooms[room].buzzOrder = [];
     io.to(room).emit("resetBuzz");
-  });
-
-  socket.on("resetRoom", (room) => {
-    const r = rooms[room];
-    if (!r) return;
-    io.to(room).emit("roomReset");
-    delete rooms[room];
+    io.to(room).emit("playerUpdate", {
+      players: rooms[room].players,
+      showPoints: rooms[room].showPoints,
+      buzzOrder: rooms[room].buzzOrder,
+      texts: rooms[room].playerTexts
+    });
   });
 
   socket.on("resetAllPoints", (room) => {
-    const r = rooms[room];
-    if (!r) return;
-    Object.keys(r.players).forEach((player) => {
-      r.players[player] = 0;
+    if (!rooms[room]) return;
+    Object.keys(rooms[room].players).forEach(n => rooms[room].players[n] = 0);
+    io.to(room).emit("playerUpdate", {
+      players: rooms[room].players,
+      showPoints: rooms[room].showPoints,
+      buzzOrder: rooms[room].buzzOrder,
+      texts: rooms[room].playerTexts
     });
-    updatePlayers(room);
-    io.to(room).emit("scoreUpdateEffects", Object.keys(r.players).map(name => ({ name, delta: 0 })));
-  });
-
-  socket.on("lockTexts", ({ room, locked }) => {
-    const r = rooms[room];
-    if (!r) return;
-    r.inputLocked = locked;
-    io.to(room).emit("inputLockStatus", locked);
   });
 
   socket.on("clearTexts", (room) => {
-    const r = rooms[room];
-    if (!r) return;
-    Object.keys(r.playerTexts).forEach(name => {
-      r.playerTexts[name] = "";
-    });
-    updatePlayers(room);
+    if (!rooms[room]) return;
+    Object.keys(rooms[room].playerTexts).forEach(n => rooms[room].playerTexts[n] = "");
     io.to(room).emit("clearTexts");
+    io.to(room).emit("playerUpdate", {
+      players: rooms[room].players,
+      showPoints: rooms[room].showPoints,
+      buzzOrder: rooms[room].buzzOrder,
+      texts: rooms[room].playerTexts
+    });
+  });
+
+  socket.on("resetRoom", (room) => {
+    if (!rooms[room]) return;
+    rooms[room] = undefined;
+    io.to(room).emit("roomReset");
+  });
+
+  socket.on("adjustPoints", ({ room, name, delta }) => {
+    if (!rooms[room] || !rooms[room].players[name]) return;
+    rooms[room].players[name] += delta;
+    io.to(room).emit("playerUpdate", {
+      players: rooms[room].players,
+      showPoints: rooms[room].showPoints,
+      buzzOrder: rooms[room].buzzOrder,
+      texts: rooms[room].playerTexts
+    });
   });
 
   socket.on("textUpdate", ({ room, name, text }) => {
-    const r = rooms[room];
-    if (!r) return;
-    r.playerTexts[name] = text;
-    updatePlayers(room);
+    if (!rooms[room]) return;
+    rooms[room].playerTexts[name] = text;
+    // Sende gezielt für Host eine eigene Live-Update-Message (vermeidet Flackern bei Teilnehmern)
+    io.to(room).emit("playerTextsUpdate", rooms[room].playerTexts);
+    io.to(room).emit("playerUpdate", {
+      players: rooms[room].players,
+      showPoints: rooms[room].showPoints,
+      buzzOrder: rooms[room].buzzOrder,
+      texts: rooms[room].playerTexts
+    });
   });
 
-  socket.on("answerSelection", ({ room, name, sel }) => {
-    const r = rooms[room];
-    if (!r) return;
-    if (!r.playerAnswers) r.playerAnswers = {};
-    if (!r.loginStatus || !r.loginStatus[name]) {
-      r.playerAnswers[name] = Array.isArray(sel) ? sel.filter(x => Number.isInteger(x)) : [];
-      io.to(room).emit("answerSelectionUpdate", r.playerAnswers);
-    }
+  socket.on("lockTexts", ({ room, locked }) => {
+    if (!rooms[room]) return;
+    rooms[room].inputLocked = !!locked;
+    io.to(room).emit("inputLockStatus", !!locked);
   });
 
   socket.on("loginStatus", ({ room, name, loggedIn }) => {
-    const r = rooms[room];
-    if (!r) return;
-    if (!r.loginStatus) r.loginStatus = {};
-    r.loginStatus[name] = !!loggedIn;
-    io.to(room).emit("loginStatusUpdate", r.loginStatus);
+    if (!rooms[room]) return;
+    if (!rooms[room].loggedInStatus) rooms[room].loggedInStatus = {};
+    rooms[room].loggedInStatus[name] = !!loggedIn;
+    io.to(room).emit("loginStatusUpdate", rooms[room].loggedInStatus);
   });
 
   socket.on("unlockText", ({ room, targetName }) => {
-    const r = rooms[room];
-    if (!r) return;
-    if (!r.loginStatus) r.loginStatus = {};
-    r.loginStatus[targetName] = false;
-    if (r.playerAnswers) r.playerAnswers[targetName] = [];
+    if (!rooms[room]) return;
+    if (!rooms[room].loggedInStatus) rooms[room].loggedInStatus = {};
+    rooms[room].loggedInStatus[targetName] = false;
     io.to(room).emit("unlockText", targetName);
-    io.to(room).emit("loginStatusUpdate", r.loginStatus);
-    io.to(room).emit("answerSelectionUpdate", r.playerAnswers);
+    io.to(room).emit("loginStatusUpdate", rooms[room].loggedInStatus);
   });
 
   socket.on("unlockAllTexts", ({ room }) => {
-    const r = rooms[room];
-    if (!r) return;
-    if (!r.loginStatus) r.loginStatus = {};
-    Object.keys(r.loginStatus).forEach(name => {
-      r.loginStatus[name] = false;
-      if (r.playerAnswers) r.playerAnswers[name] = [];
-    });
+    if (!rooms[room]) return;
+    Object.keys(rooms[room].loggedInStatus || {}).forEach(n => rooms[room].loggedInStatus[n] = false);
     io.to(room).emit("unlockAllTexts");
-    io.to(room).emit("loginStatusUpdate", r.loginStatus);
-    io.to(room).emit("answerSelectionUpdate", r.playerAnswers);
+    io.to(room).emit("loginStatusUpdate", rooms[room].loggedInStatus);
+  });
+
+  socket.on("answerSelection", ({ room, name, sel }) => {
+    if (!rooms[room]) return;
+    if (!rooms[room].playerAnswers) rooms[room].playerAnswers = {};
+    rooms[room].playerAnswers[name] = sel;
+    io.to(room).emit("answerSelectionUpdate", rooms[room].playerAnswers);
+  });
+
+  socket.on("disconnect", () => {
+    if (joinedRoom && rooms[joinedRoom]) {
+      delete rooms[joinedRoom].players[playerName];
+      delete rooms[joinedRoom].playerTexts[playerName];
+      delete rooms[joinedRoom].loggedInStatus[playerName];
+      delete rooms[joinedRoom].playerAnswers[playerName];
+      rooms[joinedRoom].buzzOrder = rooms[joinedRoom].buzzOrder.filter(n => n !== playerName);
+      io.to(joinedRoom).emit("playerUpdate", {
+        players: rooms[joinedRoom].players,
+        showPoints: rooms[joinedRoom].showPoints,
+        buzzOrder: rooms[joinedRoom].buzzOrder,
+        texts: rooms[joinedRoom].playerTexts
+      });
+      io.to(joinedRoom).emit("loginStatusUpdate", rooms[joinedRoom].loggedInStatus);
+      io.to(joinedRoom).emit("answerSelectionUpdate", rooms[joinedRoom].playerAnswers);
+    }
   });
 });
 
-function updatePlayers(room) {
-  const r = rooms[room];
-  if (!r) return;
-  io.to(room).emit("playerUpdate", {
-    players: r.players,
-    showPoints: r.showPoints,
-    buzzOrder: r.buzzOrder,
-    texts: r.playerTexts || {}
-  });
-}
-
-server.listen(3000);
+http.listen(port, () => {
+  console.log("Server läuft auf Port " + port);
+});
