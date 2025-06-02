@@ -1,4 +1,4 @@
-// server.js – v0.4.5.9 (Multiple-Choice-Feature)
+// server.js – v0.4.6.0 (MC bis 12 Optionen A–L)
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -15,7 +15,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.5.9)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.6.0)");
 });
 
 io.on("connection", (socket) => {
@@ -99,8 +99,9 @@ io.on("connection", (socket) => {
   socket.on("mcSettings", ({ room, enabled, options }) => {
     const r = rooms[room];
     if (!r) return;
+    // Begrenzen auf 2 bis 12
     r.mcEnabled = !!enabled;
-    r.mcOptions = Math.max(2, Math.min(4, options || 4));
+    r.mcOptions = Math.max(2, Math.min(12, options || 4));
     // Wenn deaktiviert: alle Antworten zurücksetzen!
     if (!r.mcEnabled) {
       r.mcAnswers = {};
@@ -114,7 +115,7 @@ io.on("connection", (socket) => {
     const r = rooms[room];
     if (!r) return;
     // Nur zulässige Werte setzen!
-    const allowed = ["A", "B", "C", "D"];
+    const allowed = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, 12); // A-L
     if (!r.mcEnabled) return;
     if (!allowed.slice(0, r.mcOptions).includes(answer)) return;
     if (!r.mcAnswers) r.mcAnswers = {};
@@ -212,7 +213,7 @@ io.on("connection", (socket) => {
     r.buzzedPlayers.clear();
     r.buzzedNamePersistent = null;
     updatePlayers(room);
-    io.to(room).emit("resetBuzz");
+    io.to(room).emit("resetBuzz", { manual: true });
   });
 
   socket.on("resetRoom", (room) => {
