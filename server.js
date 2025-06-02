@@ -1,4 +1,4 @@
-// server.js – v0.4.5.7 (Buzz-Highlight-Fix, LoginStatus, Sperr-Lämpchen-Gelb)
+// server.js – v0.4.5.8 (wie 0.4.5.7, keine Logikänderung nötig)
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -15,7 +15,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.5.7)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.5.8)");
 });
 
 io.on("connection", (socket) => {
