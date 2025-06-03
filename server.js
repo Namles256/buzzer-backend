@@ -1,4 +1,4 @@
-// server.js – v0.4.6.1 (MC bis 12 Optionen A–L)
+// server.js – v0.4.6.2 (MC bis 12 Optionen A–L)
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -15,7 +15,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.6.1)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.6.2)");
 });
 
 io.on("connection", (socket) => {
