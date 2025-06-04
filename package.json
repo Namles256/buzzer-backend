@@ -1,6 +1,7 @@
 {
-  "name": "buzzer-v0458",
-  "version": "0.4.5.8",
+  "name": "buzzer",
+  "version": "1.0.0",
+  "description": "Buzzer Game",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
