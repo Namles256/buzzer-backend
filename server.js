@@ -40,8 +40,10 @@ io.on("connection", (socket) => {
     if (isHost) {
       rooms[room].host = name;
     }
-    rooms[room].players[name] = rooms[room].players[name] || 0;
-    rooms[room].loggedIn[name] = false;
+    if (!isHost) {
+      rooms[room].players[name] = rooms[room].players[name] || 0;
+      rooms[room].loggedIn[name] = false;
+    }
     emitPlayerUpdate(room);
     io.to(room).emit("loginStatusUpdate", rooms[room].loggedIn);
     socket.emit("buzzModeSet", rooms[room].settings.buzzMode || "first");
@@ -107,7 +109,6 @@ io.on("connection", (socket) => {
     rooms[room].buzzOrder = [];
     rooms[room].buzzed = null;
     io.to(room).emit("buzzModeSet", mode);
-    io.to(room).emit("resetBuzz");
     emitPlayerUpdate(room);
   });
 
@@ -193,9 +194,11 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     const { name, room, isHost } = socket.data || {};
     if (!room || !name || !rooms[room]) return;
-    delete rooms[room].players[name];
-    delete rooms[room].loggedIn[name];
-    delete rooms[room].texts[name];
+    if (!isHost) {
+      delete rooms[room].players[name];
+      delete rooms[room].loggedIn[name];
+      delete rooms[room].texts[name];
+    }
     if (rooms[room].host === name) {
       rooms[room].host = null;
     }
