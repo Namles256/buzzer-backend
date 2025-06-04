@@ -1,4 +1,4 @@
-// server.js – v0.4.6.2 (MC bis 12 Optionen A–L)
+// server.js – v0.4.5.8 (wie 0.4.5.7, keine Logikänderung nötig)
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -15,7 +15,7 @@ const io = new Server(server, {
 const rooms = {};
 
 app.get("/", (req, res) => {
-  res.send("✅ Buzzer-Backend läuft (v0.4.6.2)");
+  res.send("✅ Buzzer-Backend läuft (v0.4.5.8)");
 });
 
 io.on("connection", (socket) => {
@@ -40,11 +40,7 @@ io.on("connection", (socket) => {
         showBuzzedPlayerToAll: true,
         inputLocked: false,
         buzzedNamePersistent: null,
-        loginStatus: {},
-        // MC-Feature
-        mcEnabled: false,
-        mcOptions: 4,
-        mcAnswers: {}
+        loginStatus: {}
       };
     }
 
@@ -56,11 +52,6 @@ io.on("connection", (socket) => {
         socket.emit("buzz", { name: rooms[room].buzzedNamePersistent });
       }
       socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
-      // MC Settings beim Host direkt synchronisieren
-      socket.emit("mcSettingsUpdate", {
-        enabled: rooms[room].mcEnabled,
-        options: rooms[room].mcOptions
-      });
     } else {
       if (!rooms[room].players[name]) {
         rooms[room].players[name] = 0;
@@ -69,15 +60,6 @@ io.on("connection", (socket) => {
       socket.emit("buzzModeSet", rooms[room].buzzMode);
       socket.emit("inputLockStatus", rooms[room].inputLocked);
       socket.emit("loginStatusUpdate", rooms[room].loginStatus || {});
-      // MC Settings direkt an Teilnehmer schicken
-      socket.emit("mcSettingsUpdate", {
-        enabled: rooms[room].mcEnabled,
-        options: rooms[room].mcOptions
-      });
-      // Wenn Antwort schon gesetzt, sofort updaten
-      if (rooms[room].mcAnswers[name]) {
-        socket.emit("mcAnswerUpdate", rooms[room].mcAnswers[name]);
-      }
     }
 
     updatePlayers(room);
@@ -93,37 +75,6 @@ io.on("connection", (socket) => {
     if (equalMode !== undefined) r.equalMode = equalMode;
     if (showBuzzedPlayerToAll !== undefined) r.showBuzzedPlayerToAll = showBuzzedPlayerToAll;
     updatePlayers(room);
-  });
-
-  // --- Multiple Choice Settings (vom Host) ---
-  socket.on("mcSettings", ({ room, enabled, options }) => {
-    const r = rooms[room];
-    if (!r) return;
-    // Begrenzen auf 2 bis 12
-    r.mcEnabled = !!enabled;
-    r.mcOptions = Math.max(2, Math.min(12, options || 4));
-    // Wenn deaktiviert: alle Antworten zurücksetzen!
-    if (!r.mcEnabled) {
-      r.mcAnswers = {};
-    }
-    io.to(room).emit("mcSettingsUpdate", { enabled: r.mcEnabled, options: r.mcOptions });
-    updatePlayers(room);
-  });
-
-  // --- Teilnehmer antwortet ---
-  socket.on("mcAnswer", ({ room, name, answer }) => {
-    const r = rooms[room];
-    if (!r) return;
-    // Nur zulässige Werte setzen!
-    const allowed = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").slice(0, 12); // A-L
-    if (!r.mcEnabled) return;
-    if (!allowed.slice(0, r.mcOptions).includes(answer)) return;
-    if (!r.mcAnswers) r.mcAnswers = {};
-    r.mcAnswers[name] = answer;
-    // Antwort an Host live übertragen
-    updatePlayers(room);
-    // Feedback an Teilnehmer
-    io.to(socket.id).emit("mcAnswerUpdate", answer);
   });
 
   socket.on("adjustPoints", ({ room, name, delta }) => {
@@ -213,7 +164,7 @@ io.on("connection", (socket) => {
     r.buzzedPlayers.clear();
     r.buzzedNamePersistent = null;
     updatePlayers(room);
-    io.to(room).emit("resetBuzz", { manual: true });
+    io.to(room).emit("resetBuzz");
   });
 
   socket.on("resetRoom", (room) => {
@@ -272,12 +223,6 @@ io.on("connection", (socket) => {
     r.loginStatus[targetName] = false;
     io.to(room).emit("unlockText", targetName);
     io.to(room).emit("loginStatusUpdate", r.loginStatus);
-    // Auch MC-Antwort bei diesem Spieler zurücksetzen!
-    if (r.mcAnswers && r.mcAnswers[targetName]) {
-      delete r.mcAnswers[targetName];
-      updatePlayers(room);
-    }
-    io.to(room).emit("mcAnswerUpdateAll", r.mcAnswers);
   });
 
   socket.on("unlockAllTexts", ({ room }) => {
@@ -289,16 +234,9 @@ io.on("connection", (socket) => {
     });
     io.to(room).emit("unlockAllTexts");
     io.to(room).emit("loginStatusUpdate", r.loginStatus);
-    // Auch alle MC-Antworten zurücksetzen!
-    if (r.mcAnswers) {
-      r.mcAnswers = {};
-      updatePlayers(room);
-    }
-    io.to(room).emit("mcAnswerUpdateAll", r.mcAnswers);
   });
 });
 
-// Spieler-Info an alle Clients (Host & Teilnehmer)
 function updatePlayers(room) {
   const r = rooms[room];
   if (!r) return;
@@ -306,10 +244,7 @@ function updatePlayers(room) {
     players: r.players,
     showPoints: r.showPoints,
     buzzOrder: r.buzzOrder,
-    texts: r.playerTexts || {},
-    mcEnabled: r.mcEnabled || false,
-    mcOptions: r.mcOptions || 4,
-    mcAnswers: r.mcAnswers || {}
+    texts: r.playerTexts || {}
   });
 }
 
