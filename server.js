@@ -66,6 +66,8 @@ io.on("connection", (socket) => {
       if (rooms[room].buzzed) return;
       rooms[room].buzzed = name;
       rooms[room].buzzOrder = [name];
+      // Nur im "first"-Modus: "buzzer.mp3" an alle schicken
+      io.to(room).emit("playBuzzSound");
     } else if (buzzMode === "multi") {
       if (!rooms[room].buzzOrder.includes(name)) {
         rooms[room].buzzOrder.push(name);
@@ -85,12 +87,14 @@ io.on("connection", (socket) => {
     let equalMode = !!rooms[room].settings.equalMode;
     if (type === "correct") {
       rooms[room].players[name] += pointsRight;
+      // Nur hier: "correct_answer.mp3"
       io.to(room).emit("playAnswerSound", { type: "correct" });
     } else if (type === "wrong") {
       rooms[room].players[name] += equalMode ? pointsWrong : pointsWrong;
       Object.keys(rooms[room].players).forEach(p => {
         if (p !== name) rooms[room].players[p] += pointsOthers;
       });
+      // Nur hier: "wrong_answer.mp3"
       io.to(room).emit("playAnswerSound", { type: "wrong" });
     }
     rooms[room].buzzOrder.shift();
@@ -116,6 +120,8 @@ io.on("connection", (socket) => {
     if (!rooms[room]) return;
     rooms[room].buzzed = null;
     rooms[room].buzzOrder = [];
+    // Nur hier: "buzzer_unlock.mp3"
+    io.to(room).emit("playUnlockSound");
     io.to(room).emit("resetBuzz");
     emitPlayerUpdate(room);
   });
