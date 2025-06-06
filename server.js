@@ -133,32 +133,34 @@ io.on("connection", (socket) => {
   });
 
   socket.on("result", ({ room, name, type }) => {
-    if (!rooms[room]) return;
-    if (rooms[room].buzzOrder.length === 0) return;
-    if (rooms[room].buzzOrder[0] !== name) return;
-    let pointsRight = rooms[room].settings.pointsRight || 100;
-    let pointsWrong = rooms[room].settings.pointsWrong || -100;
-    let pointsOthers = rooms[room].settings.pointsOthers || 0;
-    let equalMode = !!rooms[room].settings.equalMode;
-    if (type === "correct") {
-      rooms[room].players[name] += pointsRight;
-      io.to(room).emit("playAnswerSound", { type: "correct" });
-    } else if (type === "wrong") {
-      rooms[room].players[name] += equalMode ? pointsWrong : pointsWrong;
-      Object.keys(rooms[room].players).forEach(p => {
-        if (p !== name) rooms[room].players[p] += pointsOthers;
-      });
-      io.to(room).emit("playAnswerSound", { type: "wrong" });
-    }
-    rooms[room].buzzOrder.shift();
-    if (rooms[room].buzzOrder.length === 0) {
-      rooms[room].buzzed = null;
-      io.to(room).emit("resetBuzz");
-    } else {
-      rooms[room].buzzed = rooms[room].buzzOrder[0];
-      emitPlayerUpdate(room);
-    }
-  });
+  if (!rooms[room]) return;
+  if (rooms[room].buzzOrder.length === 0) return;
+  if (rooms[room].buzzOrder[0] !== name) return;
+  let pointsRight = rooms[room].settings.pointsRight || 100;
+  let pointsWrong = rooms[room].settings.pointsWrong || -100;
+  let pointsOthers = rooms[room].settings.pointsOthers || 0;
+  let equalMode = !!rooms[room].settings.equalMode;
+  if (type === "correct") {
+    rooms[room].players[name] += pointsRight;
+    io.to(room).emit("playAnswerSound", { type: "correct" });
+  } else if (type === "wrong") {
+    rooms[room].players[name] += equalMode ? pointsWrong : pointsWrong;
+    Object.keys(rooms[room].players).forEach(p => {
+      if (p !== name) rooms[room].players[p] += pointsOthers;
+    });
+    io.to(room).emit("playAnswerSound", { type: "wrong" });
+  }
+  emitPlayerUpdate(room); // <<<< SOFORT PUNKTE UPDATEN!
+  rooms[room].buzzOrder.shift();
+  if (rooms[room].buzzOrder.length === 0) {
+    rooms[room].buzzed = null;
+    io.to(room).emit("resetBuzz");
+  } else {
+    rooms[room].buzzed = rooms[room].buzzOrder[0];
+    emitPlayerUpdate(room);
+  }
+});
+
 
   socket.on("buzzModeChanged", ({ room, mode }) => {
     if (!rooms[room]) return;
