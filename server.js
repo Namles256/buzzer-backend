@@ -18,8 +18,7 @@ function getDefaultSettings() {
     equalMode: true,
     showBuzzedPlayerToAll: true,
     mcCount: 2,
-    mcMulti: false,
-    mcHide: false // NEU: MC ausblenden
+    mcMulti: false
   };
 }
 
@@ -54,8 +53,7 @@ io.on("connection", (socket) => {
     // NEU: Multiple-Choice Settings und aktuelle Antworten syncen
     socket.emit("mcSettings", {
       mcCount: rooms[room].settings.mcCount || 2,
-      mcMulti: rooms[room].settings.mcMulti || false,
-      mcHide: rooms[room].settings.mcHide || false
+      mcMulti: rooms[room].settings.mcMulti || false
     });
     socket.emit("mcAnswers", rooms[room].mcAnswers || {});
   });
@@ -69,8 +67,7 @@ io.on("connection", (socket) => {
     };
     io.to(room).emit("mcSettings", {
       mcCount: rooms[room].settings.mcCount || 2,
-      mcMulti: rooms[room].settings.mcMulti || false,
-      mcHide: rooms[room].settings.mcHide || false
+      mcMulti: rooms[room].settings.mcMulti || false
     });
     emitPlayerUpdate(room);
   });
@@ -268,8 +265,7 @@ function emitPlayerUpdate(room) {
     texts: rooms[room].texts,
     mcSettings: {
       mcCount: rooms[room].settings.mcCount || 2,
-      mcMulti: rooms[room].settings.mcMulti || false,
-      mcHide: rooms[room].settings.mcHide || false
+      mcMulti: rooms[room].settings.mcMulti || false
     },
     mcAnswers: rooms[room].mcAnswers || {}
   });
