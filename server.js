@@ -38,20 +38,22 @@ io.on("connection", (socket) => {
         locked: false,
         loggedIn: {},
         multiBuzzedNames: [],
-        mcAnswers: {}, // { [name]: [array of Buchstaben] }
+        mcAnswers: {},
       };
     }
     if (isHost) {
       rooms[room].host = name;
     }
+    // >>>> NEU: Spielerbox beim Join sofort sichtbar, auch ohne ersten Buzz!
     if (!isHost) {
-      rooms[room].players[name] = rooms[room].players[name] || 0;
+      if (!(name in rooms[room].players)) {
+        rooms[room].players[name] = 0;
+      }
       rooms[room].loggedIn[name] = false;
     }
     emitPlayerUpdate(room);
     io.to(room).emit("loginStatusUpdate", rooms[room].loggedIn);
     socket.emit("buzzModeSet", rooms[room].settings.buzzMode || "first");
-    // NEU: Multiple-Choice Settings und aktuelle Antworten syncen
     socket.emit("mcSettings", {
       mcCount: rooms[room].settings.mcCount || 2,
       mcMulti: rooms[room].settings.mcMulti || false,
@@ -75,7 +77,6 @@ io.on("connection", (socket) => {
     emitPlayerUpdate(room);
   });
 
-  // NEU: Teilnehmer wählt Antwort(en)
   socket.on("mcAnswer", ({ room, name, answers }) => {
     if (!rooms[room]) return;
     rooms[room].mcAnswers[name] = Array.isArray(answers) ? answers : [];
@@ -83,7 +84,6 @@ io.on("connection", (socket) => {
     io.to(room).emit("mcAnswers", rooms[room].mcAnswers);
   });
 
-  // Beim Entsperren Antwort zurücksetzen
   socket.on("unlockText", ({ room, targetName }) => {
     if (!rooms[room]) return;
     rooms[room].loggedIn[targetName] = false;
@@ -133,34 +133,33 @@ io.on("connection", (socket) => {
   });
 
   socket.on("result", ({ room, name, type }) => {
-  if (!rooms[room]) return;
-  if (rooms[room].buzzOrder.length === 0) return;
-  if (rooms[room].buzzOrder[0] !== name) return;
-  let pointsRight = rooms[room].settings.pointsRight || 100;
-  let pointsWrong = rooms[room].settings.pointsWrong || -100;
-  let pointsOthers = rooms[room].settings.pointsOthers || 0;
-  let equalMode = !!rooms[room].settings.equalMode;
-  if (type === "correct") {
-    rooms[room].players[name] += pointsRight;
-    io.to(room).emit("playAnswerSound", { type: "correct" });
-  } else if (type === "wrong") {
-    rooms[room].players[name] += equalMode ? pointsWrong : pointsWrong;
-    Object.keys(rooms[room].players).forEach(p => {
-      if (p !== name) rooms[room].players[p] += pointsOthers;
-    });
-    io.to(room).emit("playAnswerSound", { type: "wrong" });
-  }
-  emitPlayerUpdate(room); // <<<< SOFORT PUNKTE UPDATEN!
-  rooms[room].buzzOrder.shift();
-  if (rooms[room].buzzOrder.length === 0) {
-    rooms[room].buzzed = null;
-    io.to(room).emit("resetBuzz");
-  } else {
-    rooms[room].buzzed = rooms[room].buzzOrder[0];
+    if (!rooms[room]) return;
+    if (rooms[room].buzzOrder.length === 0) return;
+    if (rooms[room].buzzOrder[0] !== name) return;
+    let pointsRight = rooms[room].settings.pointsRight || 100;
+    let pointsWrong = rooms[room].settings.pointsWrong || -100;
+    let pointsOthers = rooms[room].settings.pointsOthers || 0;
+    let equalMode = !!rooms[room].settings.equalMode;
+    if (type === "correct") {
+      rooms[room].players[name] += pointsRight;
+      io.to(room).emit("playAnswerSound", { type: "correct" });
+    } else if (type === "wrong") {
+      rooms[room].players[name] += equalMode ? pointsWrong : pointsWrong;
+      Object.keys(rooms[room].players).forEach(p => {
+        if (p !== name) rooms[room].players[p] += pointsOthers;
+      });
+      io.to(room).emit("playAnswerSound", { type: "wrong" });
+    }
     emitPlayerUpdate(room);
-  }
-});
-
+    rooms[room].buzzOrder.shift();
+    if (rooms[room].buzzOrder.length === 0) {
+      rooms[room].buzzed = null;
+      io.to(room).emit("resetBuzz");
+    } else {
+      rooms[room].buzzed = rooms[room].buzzOrder[0];
+      emitPlayerUpdate(room);
+    }
+  });
 
   socket.on("buzzModeChanged", ({ room, mode }) => {
     if (!rooms[room]) return;
@@ -181,7 +180,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("adjustPoints", ({ room, name, delta }) => {
-    if (!rooms[room] || !rooms[room].players[name]) return;
+    if (!rooms[room] || !(name in rooms[room].players)) return;
     rooms[room].players[name] += delta;
     emitPlayerUpdate(room);
   });
@@ -196,7 +195,6 @@ io.on("connection", (socket) => {
 
   socket.on("resetRoom", (room) => {
     if (!rooms[room]) return;
-    // Alles wirklich zurücksetzen!
     rooms[room] = {
       players: {},
       host: null,
@@ -234,7 +232,6 @@ io.on("connection", (socket) => {
   socket.on("loginStatus", ({ room, name, loggedIn, mcAnswers }) => {
     if (!rooms[room]) return;
     rooms[room].loggedIn[name] = loggedIn;
-    // Multiple Choice Antworten mit speichern beim Login
     if (mcAnswers && Array.isArray(mcAnswers)) {
       rooms[room].mcAnswers[name] = mcAnswers;
       io.to(room).emit("mcAnswers", rooms[room].mcAnswers);
