@@ -148,16 +148,17 @@ io.on("connection", (socket) => {
     if (!rooms[room]) return;
     if (rooms[room].buzzOrder.length === 0) return;
     if (rooms[room].buzzOrder[0] !== name) return;
-    let pointsRight = rooms[room].settings.pointsRight || 100;
-    let pointsWrong = rooms[room].settings.pointsWrong || -100;
-    let pointsOthers = rooms[room].settings.pointsOthers || 0;
+
+    // Bugfix: Exakt die eingestellten Werte nehmen, auch für negative/0-Werte!
+    let pointsRight = (typeof rooms[room].settings.pointsRight !== "undefined") ? rooms[room].settings.pointsRight : 100;
+    let pointsWrong = (typeof rooms[room].settings.pointsWrong !== "undefined") ? rooms[room].settings.pointsWrong : -100;
+    let pointsOthers = (typeof rooms[room].settings.pointsOthers !== "undefined") ? rooms[room].settings.pointsOthers : 0;
     // let equalMode = !!rooms[room].settings.equalMode; // Wird für die Punktezählung nicht mehr gebraucht
 
     if (type === "correct") {
       rooms[room].players[name] += pointsRight;
       io.to(room).emit("playAnswerSound", { type: "correct" });
     } else if (type === "wrong") {
-      // Bugfix: Immer die tatsächlich eingestellten Minuspunkte für ❌ vergeben!
       rooms[room].players[name] += pointsWrong;
       Object.keys(rooms[room].players).forEach(p => {
         if (p !== name) rooms[room].players[p] += pointsOthers;
