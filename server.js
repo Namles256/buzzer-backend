@@ -1,10 +1,22 @@
 const express = require("express");
 const http = require("http");
-const { Server } = require("socket.io");
+const cors = require("cors"); // <--- NEU
 const app = express();
+
+// CORS-Freigabe für Netlify-URL
+app.use(cors({
+  origin: "https://buzzer-show.netlify.app",
+  credentials: true
+}));
+
 const server = http.createServer(app);
+const { Server } = require("socket.io");
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: {
+    origin: "https://buzzer-show.netlify.app",
+    methods: ["GET", "POST"],
+    credentials: true
+  }
 });
 
 let rooms = {};
