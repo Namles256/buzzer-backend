@@ -1,9 +1,8 @@
 const express = require("express");
 const http = require("http");
-const cors = require("cors"); // <--- NEU
+const cors = require("cors");
 const app = express();
 
-// CORS-Freigabe für Netlify-URL
 app.use(cors({
   origin: "https://buzzer-show.netlify.app",
   credentials: true
@@ -27,11 +26,11 @@ function getDefaultSettings() {
     pointsRight: 100,
     pointsWrong: -100,
     pointsOthers: 0,
-    equalMode: true,
     showBuzzedPlayerToAll: true,
     mcCount: 2,
     mcMulti: false,
-    mcHide: false // NEU: MC ausblenden
+    mcHide: false,
+    buzzerLocked: false // <--- NEU
   };
 }
 
@@ -56,7 +55,6 @@ io.on("connection", (socket) => {
     if (isHost) {
       rooms[room].host = name;
     }
-    // >>>> NEU: Spielerbox beim Join sofort sichtbar, auch ohne ersten Buzz!
     if (!isHost) {
       if (!(name in rooms[room].players)) {
         rooms[room].players[name] = 0;
@@ -129,6 +127,8 @@ io.on("connection", (socket) => {
 
   socket.on("buzz", ({ room, name }) => {
     if (!rooms[room]) return;
+    // NEU: Prüfe Buzzer-Lock!
+    if (rooms[room].settings.buzzerLocked) return;
     const buzzMode = rooms[room].settings.buzzMode || "first";
     if (buzzMode === "first") {
       if (rooms[room].buzzed) return;
@@ -149,11 +149,9 @@ io.on("connection", (socket) => {
     if (rooms[room].buzzOrder.length === 0) return;
     if (rooms[room].buzzOrder[0] !== name) return;
 
-    // Bugfix: Exakt die eingestellten Werte nehmen, auch für negative/0-Werte!
     let pointsRight = (typeof rooms[room].settings.pointsRight !== "undefined") ? rooms[room].settings.pointsRight : 100;
     let pointsWrong = (typeof rooms[room].settings.pointsWrong !== "undefined") ? rooms[room].settings.pointsWrong : -100;
     let pointsOthers = (typeof rooms[room].settings.pointsOthers !== "undefined") ? rooms[room].settings.pointsOthers : 0;
-    // let equalMode = !!rooms[room].settings.equalMode; // Wird für die Punktezählung nicht mehr gebraucht
 
     if (type === "correct") {
       rooms[room].players[name] += pointsRight;
@@ -285,7 +283,8 @@ function emitPlayerUpdate(room) {
       mcMulti: rooms[room].settings.mcMulti || false,
       mcHide: rooms[room].settings.mcHide || false
     },
-    mcAnswers: rooms[room].mcAnswers || {}
+    mcAnswers: rooms[room].mcAnswers || {},
+    buzzerLocked: rooms[room].settings.buzzerLocked || false // <--- NEU!
   });
 }
 
