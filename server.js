@@ -30,7 +30,7 @@ function getDefaultSettings() {
     mcCount: 2,
     mcMulti: false,
     mcHide: false,
-    buzzerLocked: false // <--- NEU
+    buzzerLocked: false // NEU: Buzzer-Lock für Host
   };
 }
 
@@ -284,7 +284,7 @@ function emitPlayerUpdate(room) {
       mcHide: rooms[room].settings.mcHide || false
     },
     mcAnswers: rooms[room].mcAnswers || {},
-    buzzerLocked: rooms[room].settings.buzzerLocked || false // <--- NEU!
+    buzzerLocked: rooms[room].settings.buzzerLocked || false // NEU!
   });
 }
 
