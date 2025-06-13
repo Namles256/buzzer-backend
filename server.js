@@ -82,7 +82,7 @@ io.on("connection", (socket) => {
     rooms[room].settings = {
       ...rooms[room].settings,
       ...data
-    };´
+    };
     io.to(room).emit("mcSettings", {
       mcCount: rooms[room].settings.mcCount || 2,
       mcMulti: rooms[room].settings.mcMulti || false,
