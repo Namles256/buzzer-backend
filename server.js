@@ -274,7 +274,6 @@ io.on("connection", (socket) => {
     io.to(room).emit("mcAnswers", rooms[room].mcAnswers || {});
   });
 });
-
 function emitPlayerUpdate(room) {
   if (!rooms[room]) return;
   io.to(room).emit("playerUpdate", {
@@ -282,6 +281,7 @@ function emitPlayerUpdate(room) {
     showPoints: rooms[room].settings.showPoints,
     buzzOrder: rooms[room].buzzOrder,
     texts: rooms[room].texts,
+    showBuzzedPlayerToAll: rooms[room].settings.showBuzzedPlayerToAll, // <--- DAS IST DER FIX!
     mcSettings: {
       mcCount: rooms[room].settings.mcCount || 2,
       mcMulti: rooms[room].settings.mcMulti || false,
@@ -290,6 +290,5 @@ function emitPlayerUpdate(room) {
     mcAnswers: rooms[room].mcAnswers || {}
   });
 }
-
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {});
