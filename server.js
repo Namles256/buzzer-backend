@@ -74,11 +74,6 @@ io.on("connection", (socket) => {
     socket.emit("mcAnswers", rooms[room].mcAnswers || {});
   });
 
-	socket.on("hostBuzzLockChanged", ({ room, locked }) => {
-	io.to(room).emit("hostBuzzLockChanged", { locked });
-	});
-
-
   socket.on("settings", (data) => {
     const room = socket.data.room;
     if (!room || !rooms[room]) return;
@@ -86,6 +81,9 @@ io.on("connection", (socket) => {
       ...rooms[room].settings,
       ...data
     };
+	socket.on("hostBuzzLockChanged", ({ room, locked }) => {
+	  io.to(room).emit("hostBuzzLockChanged", { locked });
+	});
     io.to(room).emit("mcSettings", {
       mcCount: rooms[room].settings.mcCount || 2,
       mcMulti: rooms[room].settings.mcMulti || false,
