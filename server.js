@@ -74,6 +74,11 @@ io.on("connection", (socket) => {
     socket.emit("mcAnswers", rooms[room].mcAnswers || {});
   });
 
+	socket.on("hostBuzzLockChanged", ({ room, locked }) => {
+	io.to(room).emit("hostBuzzLockChanged", { locked });
+	});
+
+
   socket.on("settings", (data) => {
     const room = socket.data.room;
     if (!room || !rooms[room]) return;
