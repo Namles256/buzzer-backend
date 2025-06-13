@@ -36,6 +36,36 @@ function getDefaultSettings() {
 }
 
 io.on("connection", (socket) => {
+	socket.on("hostMcSolve", ({ room, solution }) => {
+  if (!rooms[room]) return;
+  const players = rooms[room].players;
+  const mcAnswers = rooms[room].mcAnswers || {};
+  const settings = rooms[room].settings || {};
+  const loggedIn = rooms[room].loggedIn || {};
+  const solutionArr = (solution || []).slice().sort();
+  let solvedPlayers = [];
+  Object.keys(players).forEach(player => {
+    const answer = (mcAnswers[player] || []).slice().sort();
+    // Nur Punkte, wenn eingeloggt!
+    if (loggedIn[player]) {
+      if (
+        answer.length === solutionArr.length &&
+        answer.every((val, idx) => val === solutionArr[idx])
+      ) {
+        // Treffer! Punkte für richtige Antwort
+        players[player] += (settings.pointsRight || 100);
+        solvedPlayers.push(player);
+      }
+    }
+  });
+  // MC-Auflösungs-Broadcast an alle (Teilnehmer bekommen Banner)
+  io.to(room).emit("mcSolved", {
+    solution: solutionArr,
+    correctPlayers: solvedPlayers
+  });
+  emitPlayerUpdate(room);
+});
+
   socket.on("join", ({ name, room, isHost }) => {
     socket.join(room);
     socket.data = { name, room, isHost: !!isHost };
