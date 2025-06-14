@@ -186,32 +186,42 @@ io.on("connection", (socket) => {
     io.to(room).emit("buzzModeSet", mode);
     emitPlayerUpdate(room);
   });
-  socket.on("hostMcSolve", ({ room, solution }) => {
-    if (!rooms[room]) return;
-    const players = rooms[room].players;
-    const mcAnswers = rooms[room].mcAnswers || {};
-    const settings = rooms[room].settings || {};
-    const loggedIn = rooms[room].loggedIn || {};
-    const solutionArr = (solution || []).slice().sort();
-    let solvedPlayers = [];
-    Object.keys(players).forEach(player => {
-      const answer = (mcAnswers[player] || []).slice().sort();
-      if (loggedIn[player]) {
-        if (
-          answer.length === solutionArr.length &&
-          answer.every((val, idx) => val === solutionArr[idx])
-        ) {
-          players[player] += (settings.pointsRight || 100);
-          solvedPlayers.push(player);
-        }
+socket.on("hostMcSolve", ({ room, solution }) => {
+  if (!rooms[room]) return;
+  const players = rooms[room].players;
+  const mcAnswers = rooms[room].mcAnswers || {};
+  const settings = rooms[room].settings || {};
+  const loggedIn = rooms[room].loggedIn || {};
+  const solutionArr = (solution || []).slice().sort();
+  let solvedPlayers = [];
+  Object.keys(players).forEach(player => {
+    const answer = (mcAnswers[player] || []).slice().sort();
+    if (loggedIn[player]) {
+      if (
+        answer.length === solutionArr.length &&
+        answer.every((val, idx) => val === solutionArr[idx])
+      ) {
+        players[player] += (settings.pointsRight || 100);
+        solvedPlayers.push(player);
       }
-    });
-    io.to(room).emit("mcSolved", {
-      solution: solutionArr,
-      correctPlayers: solvedPlayers
-    });
-    emitPlayerUpdate(room);
+    }
   });
+  // --- NEU: Entsperre alle Teilnehmer wie beim "Alle entsperren" ---
+  Object.keys(rooms[room].loggedIn).forEach(p => {
+    rooms[room].loggedIn[p] = false;
+    if (rooms[room].mcAnswers) rooms[room].mcAnswers[p] = [];
+  });
+  io.to(room).emit("unlockAllTexts");
+  io.to(room).emit("loginStatusUpdate", rooms[room].loggedIn);
+  io.to(room).emit("mcAnswers", rooms[room].mcAnswers || {});
+  // --- NEU: MC-Auflösungs-Broadcast (inkl. Host-Banner) ---
+  io.to(room).emit("mcSolved", {
+    solution: solutionArr,
+    correctPlayers: solvedPlayers,
+    showHost: true // Flag, damit auch der Host ein Banner bekommt!
+  });
+  emitPlayerUpdate(room);
+});
   socket.on("resetBuzz", (room) => {
     if (!rooms[room]) return;
     rooms[room].buzzed = null;
