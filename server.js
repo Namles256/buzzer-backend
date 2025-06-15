@@ -89,8 +89,10 @@ io.on("connection", (socket) => {
       mcHide: rooms[room].settings.mcHide || false
     });
     emitPlayerUpdate(room);
+	if (typeof data.showLoginIndicators !== "undefined") {
+	rooms[data.room].settings.showLoginIndicators = data.showLoginIndicators;
+	}
   });
-
   socket.on("mcAnswer", ({ room, name, answers }) => {
     if (!rooms[room]) return;
     rooms[room].mcAnswers[name] = Array.isArray(answers) ? answers : [];
@@ -314,6 +316,7 @@ function emitPlayerUpdate(room) {
   io.to(room).emit("playerUpdate", {
     players: rooms[room].players,
     showPoints: rooms[room].settings.showPoints,
+	showLoginIndicators: rooms[room].settings.showLoginIndicators,
     buzzOrder: rooms[room].buzzOrder,
     texts: rooms[room].texts,
     showBuzzedPlayerToAll: rooms[room].settings.showBuzzedPlayerToAll, // <--- DAS IST DER FIX!
