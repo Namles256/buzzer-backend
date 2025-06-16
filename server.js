@@ -27,11 +27,12 @@ function getDefaultSettings() {
     pointsRight: 100,
     pointsWrong: -100,
     pointsOthers: 0,
+    pointsMcWrong: 0, // NEU
     equalMode: true,
     showBuzzedPlayerToAll: true,
     mcCount: 2,
     mcMulti: false,
-    mcHide: false // NEU: MC ausblenden
+    mcHide: false
   };
 }
 
@@ -198,15 +199,18 @@ socket.on("hostMcSolve", ({ room, solution }) => {
   let solvedPlayers = [];
   Object.keys(players).forEach(player => {
     const answer = (mcAnswers[player] || []).slice().sort();
-    if (loggedIn[player]) {
-      if (
-        answer.length === solutionArr.length &&
-        answer.every((val, idx) => val === solutionArr[idx])
-      ) {
-        players[player] += (settings.pointsRight || 100);
-        solvedPlayers.push(player);
-      }
-    }
+	if (loggedIn[player]) {
+	  if (
+		answer.length === solutionArr.length &&
+		answer.every((val, idx) => val === solutionArr[idx])
+	  ) {
+		players[player] += (settings.pointsRight || 100);
+		solvedPlayers.push(player);
+	  } else {
+		// Falsch: Minuspunkte für falsche MC-Antwort
+		players[player] += (typeof settings.pointsMcWrong !== "undefined" ? settings.pointsMcWrong : 0);
+	  }
+	}
   });
   // --- NEU: Entsperre alle Teilnehmer wie beim "Alle entsperren" ---
   Object.keys(rooms[room].loggedIn).forEach(p => {
@@ -313,20 +317,21 @@ socket.on("hostMcSolve", ({ room, solution }) => {
 });
 function emitPlayerUpdate(room) {
   if (!rooms[room]) return;
-  io.to(room).emit("playerUpdate", {
-    players: rooms[room].players,
-    showPoints: rooms[room].settings.showPoints,
-	showLoginIndicators: rooms[room].settings.showLoginIndicators,
-    buzzOrder: rooms[room].buzzOrder,
-    texts: rooms[room].texts,
-    showBuzzedPlayerToAll: rooms[room].settings.showBuzzedPlayerToAll, // <--- DAS IST DER FIX!
-    mcSettings: {
-      mcCount: rooms[room].settings.mcCount || 2,
-      mcMulti: rooms[room].settings.mcMulti || false,
-      mcHide: rooms[room].settings.mcHide || false
-    },
-    mcAnswers: rooms[room].mcAnswers || {}
-  });
+	io.to(room).emit("playerUpdate", {
+	  players: rooms[room].players,
+	  showPoints: rooms[room].settings.showPoints,
+	  showLoginIndicators: rooms[room].settings.showLoginIndicators,
+	  buzzOrder: rooms[room].buzzOrder,
+	  texts: rooms[room].texts,
+	  showBuzzedPlayerToAll: rooms[room].settings.showBuzzedPlayerToAll,
+	  mcSettings: {
+		mcCount: rooms[room].settings.mcCount || 2,
+		mcMulti: rooms[room].settings.mcMulti || false,
+		mcHide: rooms[room].settings.mcHide || false
+	  },
+	  mcAnswers: rooms[room].mcAnswers || {},
+	  pointsMcWrong: rooms[room].settings.pointsMcWrong // NEU
+	});
 }
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {});
