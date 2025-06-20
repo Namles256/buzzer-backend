@@ -52,10 +52,10 @@ io.on("connection", (socket) => {
     socket.join(room);
     socket.data = { name, room, isHost: !!isHost };
     if (!rooms[room]) {
-	surrender: {},
       rooms[room] = {
         players: {},
         host: isHost ? name : null,
+		surrender: {},
         buzzed: null,
         buzzOrder: [],
         settings: getDefaultSettings(),
