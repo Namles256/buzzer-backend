@@ -58,12 +58,15 @@ io.on("connection", (socket) => {
       rooms[room].host = name;
     }
     // >>>> NEU: Spielerbox beim Join sofort sichtbar, auch ohne ersten Buzz!
-    if (!isHost) {
-      if (!(name in rooms[room].players)) {
-        rooms[room].players[name] = 0;
-      }
-      rooms[room].loggedIn[name] = false;
-    }
+	if (!isHost) {
+	  // Punkte nur setzen, wenn Spielername wirklich neu ist
+	  if (rooms[room].players[name] === undefined) {
+		rooms[room].players[name] = 0;
+	  }
+	  if (rooms[room].loggedIn[name] === undefined) {
+		rooms[room].loggedIn[name] = false;
+	  }
+	}
     emitPlayerUpdate(room);
     io.to(room).emit("loginStatusUpdate", rooms[room].loggedIn);
     socket.emit("buzzModeSet", rooms[room].settings.buzzMode || "first");
@@ -302,7 +305,6 @@ socket.on("hostMcSolve", ({ room, solution }) => {
     const { name, room, isHost } = socket.data || {};
     if (!room || !name || !rooms[room]) return;
     if (!isHost) {
-      delete rooms[room].players[name];
       delete rooms[room].loggedIn[name];
       delete rooms[room].texts[name];
       if (rooms[room].mcAnswers) delete rooms[room].mcAnswers[name];
