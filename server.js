@@ -37,10 +37,22 @@ function getDefaultSettings() {
 }
 
 io.on("connection", (socket) => {
+	socket.on("surrenderToggle", ({ room, name }) => {
+	  if (!rooms[room]) return;
+	  const current = rooms[room].surrender?.[name];
+	  rooms[room].surrender[name] = !current;
+	  io.to(room).emit("surrenderUpdate", rooms[room].surrender);
+	});
+	socket.on("surrenderClear", ({ room }) => {
+	  if (!rooms[room]) return;
+	  Object.keys(rooms[room].surrender).forEach(p => rooms[room].surrender[p] = false);
+	  io.to(room).emit("surrenderUpdate", rooms[room].surrender);
+	});
   socket.on("join", ({ name, room, isHost }) => {
     socket.join(room);
     socket.data = { name, room, isHost: !!isHost };
     if (!rooms[room]) {
+	surrender: {},
       rooms[room] = {
         players: {},
         host: isHost ? name : null,
@@ -59,7 +71,7 @@ io.on("connection", (socket) => {
     }
     // >>>> NEU: Spielerbox beim Join sofort sichtbar, auch ohne ersten Buzz!
 	if (!isHost) {
-	  // Punkte nur setzen, wenn Spielername wirklich neu ist
+	  if (!rooms[room].surrender) rooms[room].surrender = {};
 	  if (rooms[room].players[name] === undefined) {
 		rooms[room].players[name] = 0;
 	  }
@@ -306,6 +318,9 @@ socket.on("hostMcSolve", ({ room, solution }) => {
     if (!room || !name || !rooms[room]) return;
     if (!isHost) {
       delete rooms[room].loggedIn[name];
+	    if (rooms[room].surrender) {
+    delete rooms[room].surrender[name];
+  }
       delete rooms[room].texts[name];
       if (rooms[room].mcAnswers) delete rooms[room].mcAnswers[name];
     }
