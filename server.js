@@ -247,6 +247,7 @@ socket.on("hostMcSolve", ({ room, solution }) => {
     correctPlayers: solvedPlayers,
     showHost: true // Flag, damit auch der Host ein Banner bekommt!
   });
+  io.to(room).emit("playSolveSound");
   emitPlayerUpdate(room);
 });
   socket.on("resetBuzz", (room) => {
