@@ -38,6 +38,12 @@ function getDefaultSettings() {
 
 io.on("connection", (socket) => {
 	socket.on("surrenderToggle", ({ room, name }) => {
+			socket.on("surrenderClearSingle", ({ room, name }) => {
+	  if (rooms[room] && rooms[room].surrender) {
+		rooms[room].surrender[name] = false;
+		io.to(room).emit("surrenderUpdate", rooms[room].surrender);
+	  }
+	});
 	  if (!rooms[room]) return;
 	  const current = rooms[room].surrender?.[name];
 	  rooms[room].surrender[name] = !current;
