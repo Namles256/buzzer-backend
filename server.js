@@ -341,21 +341,22 @@ socket.on("hostMcSolve", ({ room, solution }) => {
 });
 function emitPlayerUpdate(room) {
   if (!rooms[room]) return;
-	io.to(room).emit("playerUpdate", {
-	  players: rooms[room].players,
-	  showPoints: rooms[room].settings.showPoints,
-	  showLoginIndicators: rooms[room].settings.showLoginIndicators,
-	  buzzOrder: rooms[room].buzzOrder,
-	  texts: rooms[room].texts,
-	  showBuzzedPlayerToAll: rooms[room].settings.showBuzzedPlayerToAll,
-	  mcSettings: {
-		mcCount: rooms[room].settings.mcCount || 2,
-		mcMulti: rooms[room].settings.mcMulti || false,
-		mcHide: rooms[room].settings.mcHide || false
-	  },
-	  mcAnswers: rooms[room].mcAnswers || {},
-	  pointsMcWrong: rooms[room].settings.pointsMcWrong // NEU
-	});
+  io.to(room).emit("playerUpdate", {
+    players: rooms[room].players,
+    showPoints: rooms[room].settings.showPoints,
+    showLoginIndicators: rooms[room].settings.showLoginIndicators,
+    showMcInScoreList: rooms[room].settings.showMcInScoreList, // ✅ NEU
+    buzzOrder: rooms[room].buzzOrder,
+    texts: rooms[room].texts,
+    showBuzzedPlayerToAll: rooms[room].settings.showBuzzedPlayerToAll,
+    mcSettings: {
+      mcCount: rooms[room].settings.mcCount || 2,
+      mcMulti: rooms[room].settings.mcMulti || false,
+      mcHide: rooms[room].settings.mcHide || false
+    },
+    mcAnswers: rooms[room].mcAnswers || {},
+    pointsMcWrong: rooms[room].settings.pointsMcWrong
+  });
 }
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {});
