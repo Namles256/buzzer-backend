@@ -114,6 +114,9 @@ io.on("connection", (socket) => {
 	if (typeof data.showLoginIndicators !== "undefined") {
 	rooms[data.room].settings.showLoginIndicators = data.showLoginIndicators;
 	}
+	if (typeof data.showMcInScoreList !== "undefined") {
+	rooms[data.room].settings.showMcInScoreList = data.showMcInScoreList;
+	}
   });
   socket.on("mcAnswer", ({ room, name, answers }) => {
     if (!rooms[room]) return;
