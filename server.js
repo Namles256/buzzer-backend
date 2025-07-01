@@ -37,6 +37,14 @@ function getDefaultSettings() {
 }
 
 io.on("connection", (socket) => {
+	socket.on("startTimer", ({ room, startTime, duration, lockBuzzer, autoSubmit }) => {
+  io.to(room).emit("startTimer", { startTime, duration, lockBuzzer, autoSubmit });
+});
+
+socket.on("stopTimer", (room) => {
+  io.to(room).emit("stopTimer");
+});
+
 	socket.on("surrenderToggle", ({ room, name }) => {
 			socket.on("surrenderClearSingle", ({ room, name }) => {
 	  if (rooms[room] && rooms[room].surrender) {
