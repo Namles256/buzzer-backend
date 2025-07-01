@@ -41,6 +41,10 @@ io.on("connection", (socket) => {
   io.to(room).emit("startTimer", { startTime, duration, lockBuzzer, autoSubmit });
 });
 
+socket.on("setTimerDuration", ({ room, value }) => {
+  io.to(room).emit("setTimerDuration", value);
+});
+
 socket.on("stopTimer", (room) => {
   io.to(room).emit("stopTimer");
 });
