@@ -20,6 +20,7 @@ const io = new Server(server, {
 });
 
 let rooms = {};
+let allSurrenderedWhenLocked = {};
 
 function getDefaultSettings() {
   return {
@@ -68,7 +69,13 @@ socket.on("stopTimer", (room) => {
 
 	  const current = rooms[room].surrender?.[name];
 	  rooms[room].surrender[name] = !current;
+	  const allNames = Object.keys(rooms[room].players);
+	const allKapituliert = allNames.length > 0 && allNames.every(n => rooms[room].surrender[n]);
 
+	if (allKapituliert) {
+	  io.to(room).emit("buzzBlocked");
+	  allSurrenderedWhenLocked[room] = true; // Merken für später
+	}
 	  io.to(room).emit("surrenderUpdate", rooms[room].surrender);
 
 	  // NEU: Wenn ALLE Teilnehmer kapituliert haben → Buzzer sperren
@@ -87,45 +94,34 @@ socket.on("stopTimer", (room) => {
   socket.on("join", ({ name, room, isHost }) => {
     socket.join(room);
     socket.data = { name, room, isHost: !!isHost };
-    rooms[room] = {
-    players: {},
-    host: isHost ? name : null,
-    surrender: {},
-    buzzed: null,
-    buzzOrder: [],
-    settings: getDefaultSettings(),
-    texts: {},
-    locked: false,
-    loggedIn: {},
-    multiBuzzedNames: [],
-    mcAnswers: {}
-  };
+    if (!rooms[room]) {
+      rooms[room] = {
+        players: {},
+        host: isHost ? name : null,
+		surrender: {},
+        buzzed: null,
+        buzzOrder: [],
+        settings: getDefaultSettings(),
+        texts: {},
+        locked: false,
+        loggedIn: {},
+        multiBuzzedNames: [],
+        mcAnswers: {},
+      };
+    }
     if (isHost) {
       rooms[room].host = name;
     }
-	if (!(name in rooms[room].players)) {
-  rooms[room].players[name] = 0;
-}
     // >>>> NEU: Spielerbox beim Join sofort sichtbar, auch ohne ersten Buzz!
 	if (!isHost) {
-	  if (!rooms[room]) return;
 	  if (!rooms[room].surrender) rooms[room].surrender = {};
-	}
-
-	socket.on("hostBuzzLockChanged", ({ room, locked }) => {
-	  io.to(room).emit("hostBuzzLockChanged", { locked });
-
-	  // Ergänzung: Wenn ENTSPERRT wird, und ALLE kapituliert haben → Fahnen zurücksetzen
-	  if (!locked && rooms[room]) {
-		const allNames = Object.keys(rooms[room].players);
-		const allKapituliert = allNames.length > 0 && allNames.every(n => rooms[room].surrender?.[n]);
-
-		if (allKapituliert) {
-		  rooms[room].surrender = {};
-		  io.to(room).emit("surrenderUpdate", rooms[room].surrender);
-		}
+	  if (rooms[room].players[name] === undefined) {
+		rooms[room].players[name] = 0;
 	  }
-	});
+	  if (rooms[room].loggedIn[name] === undefined) {
+		rooms[room].loggedIn[name] = false;
+	  }
+	}
     emitPlayerUpdate(room);
     io.to(room).emit("loginStatusUpdate", rooms[room].loggedIn);
     socket.emit("buzzModeSet", rooms[room].settings.buzzMode || "first");
@@ -136,6 +132,9 @@ socket.on("stopTimer", (room) => {
     });
     socket.emit("mcAnswers", rooms[room].mcAnswers || {});
   });
+	socket.on("hostBuzzLockChanged", ({ room, locked }) => {
+	io.to(room).emit("hostBuzzLockChanged", { locked });
+	});
   socket.on("settings", (data) => {
     const room = socket.data.room;
     if (!room || !rooms[room]) return;
@@ -301,6 +300,11 @@ socket.on("hostMcSolve", ({ room, solution }) => {
     rooms[room].buzzOrder = [];
     io.to(room).emit("playUnlockSound");
     io.to(room).emit("resetBuzz");
+	if (allSurrenderedWhenLocked[room]) {
+	  io.to(room).emit("surrenderClear");
+	  rooms[room].surrender = {};
+	  allSurrenderedWhenLocked[room] = false;
+	}
     emitPlayerUpdate(room);
   });
 
@@ -323,7 +327,6 @@ socket.on("hostMcSolve", ({ room, solution }) => {
     rooms[room] = {
       players: {},
       host: null,
-	  surrender: {},
       buzzed: null,
       buzzOrder: [],
       settings: getDefaultSettings(),
