@@ -286,19 +286,22 @@ socket.on("hostMcSolve", ({ room, solution }) => {
   io.to(room).emit("playSolveSound");
   emitPlayerUpdate(room);
 });
-  socket.on("resetBuzz", (room) => {
-    if (!rooms[room]) return;
-    rooms[room].buzzed = null;
-    rooms[room].buzzOrder = [];
-    io.to(room).emit("playUnlockSound");
-    io.to(room).emit("resetBuzz");
-	if (allSurrenderedWhenLocked[room]) {
-	  io.to(room).emit("surrenderClear");
-	  rooms[room].surrender = {};
-	  allSurrenderedWhenLocked[room] = false;
-	}
-    emitPlayerUpdate(room);
-  });
+	socket.on("resetBuzz", (room) => {
+	  if (!rooms[room]) return;
+	  rooms[room].buzzed = null;
+	  rooms[room].buzzOrder = [];
+	  io.to(room).emit("playUnlockSound");
+	  io.to(room).emit("resetBuzz");
+
+	  // == NEU: Surrender-Fahnen entfernen, falls Buzzer durch "alle kapituliert" blockiert war ==
+	  if (allSurrenderedWhenLocked[room]) {
+		io.to(room).emit("surrenderClear");         // Teilnehmer-Fahnen zurücksetzen
+		rooms[room].surrender = {};                 // Server-Fahnen zurücksetzen
+		allSurrenderedWhenLocked[room] = false;     // Merker zurücksetzen
+	  }
+
+	  emitPlayerUpdate(room);
+	});
 
   socket.on("adjustPoints", ({ room, name, delta }) => {
     if (!rooms[room] || !(name in rooms[room].players)) return;
