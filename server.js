@@ -125,7 +125,21 @@ socket.on("stopTimer", (room) => {
     socket.emit("mcAnswers", rooms[room].mcAnswers || {});
   });
 	socket.on("hostBuzzLockChanged", ({ room, locked }) => {
-	io.to(room).emit("hostBuzzLockChanged", { locked });
+  io.to(room).emit("hostBuzzLockChanged", { locked });
+
+  if (!rooms[room]) return;
+
+  // Wenn ENTSPERRT wird...
+  if (!locked) {
+    const allNames = Object.keys(rooms[room].players || {});
+    const allSurrendered = allNames.length > 0 && allNames.every(n => rooms[room].surrender?.[n]);
+
+    if (allSurrendered) {
+      // Nur wenn ALLE surrendern → auch die Fahnen zurücksetzen
+      Object.keys(rooms[room].surrender).forEach(p => rooms[room].surrender[p] = false);
+      io.to(room).emit("surrenderUpdate", rooms[room].surrender);
+    }
+	}
 	});
   socket.on("settings", (data) => {
     const room = socket.data.room;
