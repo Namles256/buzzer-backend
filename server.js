@@ -135,20 +135,6 @@ socket.on("stopTimer", (room) => {
     });
     socket.emit("mcAnswers", rooms[room].mcAnswers || {});
   });
-	socket.on("hostBuzzLockChanged", ({ room, locked }) => {
-	  io.to(room).emit("hostBuzzLockChanged", { locked });
-
-	  // Ergänzung: Wenn ENTSPERRT wird, und ALLE kapituliert haben → Fahnen zurücksetzen
-	  if (!locked && rooms[room]) {
-		const allNames = Object.keys(rooms[room].players);
-		const allKapituliert = allNames.length > 0 && allNames.every(n => rooms[room].surrender?.[n]);
-
-		if (allKapituliert) {
-		  rooms[room].surrender = {};
-		  io.to(room).emit("surrenderUpdate", rooms[room].surrender);
-		}
-	  }
-	});
   socket.on("settings", (data) => {
     const room = socket.data.room;
     if (!room || !rooms[room]) return;
