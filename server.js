@@ -107,16 +107,24 @@ socket.on("stopTimer", (room) => {
     }
     // >>>> NEU: Spielerbox beim Join sofort sichtbar, auch ohne ersten Buzz!
 	if (!isHost) {
-	  if (!rooms[room].surrender) rooms[room].surrender = {};
 	  if (!rooms[room]) return;
-	  socket.on("hostBuzzLockChanged", ({ room, locked }) => {
-	  if (rooms[room].players[name] === undefined) {
-		rooms[room].players[name] = 0;
-	  }
-	  if (rooms[room].loggedIn[name] === undefined) {
-		rooms[room].loggedIn[name] = false;
-	  }
+	  if (!rooms[room].surrender) rooms[room].surrender = {};
 	}
+
+	socket.on("hostBuzzLockChanged", ({ room, locked }) => {
+	  io.to(room).emit("hostBuzzLockChanged", { locked });
+
+	  // Ergänzung: Wenn ENTSPERRT wird, und ALLE kapituliert haben → Fahnen zurücksetzen
+	  if (!locked && rooms[room]) {
+		const allNames = Object.keys(rooms[room].players);
+		const allKapituliert = allNames.length > 0 && allNames.every(n => rooms[room].surrender?.[n]);
+
+		if (allKapituliert) {
+		  rooms[room].surrender = {};
+		  io.to(room).emit("surrenderUpdate", rooms[room].surrender);
+		}
+	  }
+	});
     emitPlayerUpdate(room);
     io.to(room).emit("loginStatusUpdate", rooms[room].loggedIn);
     socket.emit("buzzModeSet", rooms[room].settings.buzzMode || "first");
