@@ -199,19 +199,21 @@ socket.on("stopTimer", (room) => {
     }
   });
 
-  socket.on("buzz", ({ room, name }) => {
-    if (!rooms[room]) return;
+	socket.on("buzz", ({ room, name }) => {
+	  if (!rooms[room]) return;
+
 	  // Sonderfall: Buzz durch Timer-Ende (künstlich)
-  if (name === "_timer_end_") {
-    if (rooms[room].settings.buzzMode === "first" && !rooms[room].buzzed) {
-      rooms[room].buzzed = "_timer_end_";
-      rooms[room].buzzOrder = ["_timer_end_"];
-      io.to(room).emit("buzz", { name: "_timer_end_" });
-      emitPlayerUpdate(room);
-    }
-    return;
-  }
-    const buzzMode = rooms[room].settings.buzzMode || "first";
+	  if (name === "_timer_end_") {
+		if (rooms[room].settings.buzzMode === "first" && !rooms[room].buzzed) {
+		  rooms[room].buzzed = "_timer_end_";
+		  rooms[room].buzzOrder = ["_timer_end_"];
+		  io.to(room).emit("buzz", { name: "_timer_end_" });
+		  emitPlayerUpdate(room);
+		}
+		return;
+	  }
+
+	  const buzzMode = rooms[room].settings.buzzMode || "first";
 	if (rooms[room].settings.resetOnBuzz && rooms[room].timerRunning) {
   rooms[room].timerRunning = false;
   io.to(room).emit("stopTimer");
