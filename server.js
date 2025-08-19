@@ -77,14 +77,6 @@ socket.on("stopTimer", (room) => {
 	  allSurrenderedWhenLocked[room] = true; // Merken für später
 	}
 	  io.to(room).emit("surrenderUpdate", rooms[room].surrender);
-
-	  // NEU: Wenn ALLE Teilnehmer kapituliert haben → Buzzer sperren
-	  const allNames = Object.keys(rooms[room].players);
-	  const allKapituliert = allNames.length > 0 && allNames.every(n => rooms[room].surrender[n]);
-
-	  if (allKapituliert) {
-		io.to(room).emit("buzzBlocked");
-	  }
 	});
 	socket.on("surrenderClear", ({ room }) => {
 	  if (!rooms[room]) return;
