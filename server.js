@@ -45,7 +45,7 @@ io.on("connection", (socket) => {
 	  autoSubmit,
 	  resetOnBuzz
 	});
-
+});
 socket.on("setTimerDuration", ({ room, value }) => {
   io.to(room).emit("setTimerDuration", value);
 });
