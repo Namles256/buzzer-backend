@@ -38,14 +38,17 @@ function getDefaultSettings() {
 
 io.on("connection", (socket) => {
 	socket.on("startTimer", ({ room, startTime, duration, lockBuzzer, autoSubmit, resetOnBuzz }) => {
-	io.to(room).emit("startTimer", {
-	  startTime,
-	  duration,
-	  lockBuzzer,
-	  autoSubmit,
-	  resetOnBuzz
+	  if (!rooms[room]) return;
+	  rooms[room].timerRunning = true;
+	  rooms[room].settings.resetOnBuzz = resetOnBuzz;
+	  io.to(room).emit("startTimer", {
+		startTime,
+		duration,
+		lockBuzzer,
+		autoSubmit,
+		resetOnBuzz
+	  });
 	});
-});
 socket.on("setTimerDuration", ({ room, value }) => {
   io.to(room).emit("setTimerDuration", value);
 });
@@ -176,6 +179,10 @@ socket.on("stopTimer", (room) => {
   socket.on("buzz", ({ room, name }) => {
     if (!rooms[room]) return;
     const buzzMode = rooms[room].settings.buzzMode || "first";
+	if (rooms[room].settings.resetOnBuzz && rooms[room].timerRunning) {
+  rooms[room].timerRunning = false;
+  io.to(room).emit("stopTimer");
+}
     if (buzzMode === "first") {
       if (rooms[room].buzzed) return;
       rooms[room].buzzed = name;
