@@ -202,35 +202,37 @@ socket.on("stopTimer", (room) => {
 	socket.on("buzz", ({ room, name }) => {
 	  if (!rooms[room]) return;
 
-	  // Sonderfall: Buzz durch Timer-Ende (künstlich)
+	  // Spezialfall: Timer-Ende → simulierter Buzz
 	  if (name === "_timer_end_") {
-		if (rooms[room].settings.buzzMode === "first" && !rooms[room].buzzed) {
-		  rooms[room].buzzed = "_timer_end_";
-		  rooms[room].buzzOrder = ["_timer_end_"];
-		  io.to(room).emit("buzz", { name: "_timer_end_" });
-		  emitPlayerUpdate(room);
+		// Nur wenn Buzzer noch nicht blockiert ist
+		if (!rooms[room].buzzedName && !rooms[room].buzzLocked) {
+		  rooms[room].buzzedName = name;
+		  rooms[room].buzzLocked = true;
+		  io.to(room).emit("buzzBlocked");
 		}
 		return;
 	  }
 
-	  const buzzMode = rooms[room].settings.buzzMode || "first";
-	if (rooms[room].settings.resetOnBuzz && rooms[room].timerRunning) {
-  rooms[room].timerRunning = false;
-  io.to(room).emit("stopTimer");
-}
-    if (buzzMode === "first") {
-      if (rooms[room].buzzed) return;
-      rooms[room].buzzed = name;
-      rooms[room].buzzOrder = [name];
-      io.to(room).emit("playBuzzSound");
-    } else if (buzzMode === "multi") {
-      if (!rooms[room].buzzOrder.includes(name)) {
-        rooms[room].buzzOrder.push(name);
-      }
-    }
-    io.to(room).emit("buzz", { name });
-    emitPlayerUpdate(room);
-  });
+	  if (!rooms[room].players[name]) return;
+
+	  if (rooms[room].buzzLocked) return;
+
+	  if (rooms[room].buzzMode === "first") {
+		if (!rooms[room].buzzedName) {
+		  rooms[room].buzzedName = name;
+		  rooms[room].buzzLocked = true;
+		  io.to(room).emit("buzz", { name });
+		  io.to(room).emit("buzzBlocked");
+		  io.to(room).emit("playBuzzSound");
+		}
+	  } else if (rooms[room].buzzMode === "multi") {
+		if (!rooms[room].multiBuzzed.includes(name)) {
+		  rooms[room].multiBuzzed.push(name);
+		  io.to(room).emit("buzz", { name });
+		  io.to(room).emit("playBuzzSound");
+		}
+	  }
+	});
 
   socket.on("result", ({ room, name, type }) => {
     if (!rooms[room]) return;
