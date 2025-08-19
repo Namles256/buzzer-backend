@@ -108,6 +108,8 @@ socket.on("stopTimer", (room) => {
     // >>>> NEU: Spielerbox beim Join sofort sichtbar, auch ohne ersten Buzz!
 	if (!isHost) {
 	  if (!rooms[room].surrender) rooms[room].surrender = {};
+	  if (!rooms[room]) return;
+	  socket.on("hostBuzzLockChanged", ({ room, locked }) => {
 	  if (rooms[room].players[name] === undefined) {
 		rooms[room].players[name] = 0;
 	  }
@@ -326,6 +328,7 @@ socket.on("hostMcSolve", ({ room, solution }) => {
     rooms[room] = {
       players: {},
       host: null,
+	  surrender: {},
       buzzed: null,
       buzzOrder: [],
       settings: getDefaultSettings(),
