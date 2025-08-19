@@ -100,7 +100,6 @@ socket.on("stopTimer", (room) => {
     multiBuzzedNames: [],
     mcAnswers: {}
   };
-}
     if (isHost) {
       rooms[room].host = name;
     }
