@@ -87,24 +87,26 @@ socket.on("stopTimer", (room) => {
   socket.on("join", ({ name, room, isHost }) => {
     socket.join(room);
     socket.data = { name, room, isHost: !!isHost };
-    if (!rooms[room]) {
-      rooms[room] = {
-        players: {},
-        host: isHost ? name : null,
-		surrender: {},
-        buzzed: null,
-        buzzOrder: [],
-        settings: getDefaultSettings(),
-        texts: {},
-        locked: false,
-        loggedIn: {},
-        multiBuzzedNames: [],
-        mcAnswers: {},
-      };
-    }
+    rooms[room] = {
+    players: {},
+    host: isHost ? name : null,
+    surrender: {},
+    buzzed: null,
+    buzzOrder: [],
+    settings: getDefaultSettings(),
+    texts: {},
+    locked: false,
+    loggedIn: {},
+    multiBuzzedNames: [],
+    mcAnswers: {}
+  };
+}
     if (isHost) {
       rooms[room].host = name;
     }
+	if (!(name in rooms[room].players)) {
+  rooms[room].players[name] = 0;
+}
     // >>>> NEU: Spielerbox beim Join sofort sichtbar, auch ohne ersten Buzz!
 	if (!isHost) {
 	  if (!rooms[room]) return;
