@@ -37,9 +37,14 @@ function getDefaultSettings() {
 }
 
 io.on("connection", (socket) => {
-	socket.on("startTimer", ({ room, startTime, duration, lockBuzzer, autoSubmit }) => {
-  io.to(room).emit("startTimer", { startTime, duration, lockBuzzer, autoSubmit });
-});
+	socket.on("startTimer", ({ room, startTime, duration, lockBuzzer, autoSubmit, resetOnBuzz }) => {
+	io.to(room).emit("startTimer", {
+	  startTime,
+	  duration,
+	  lockBuzzer,
+	  autoSubmit,
+	  resetOnBuzz
+	});
 
 socket.on("setTimerDuration", ({ room, value }) => {
   io.to(room).emit("setTimerDuration", value);
